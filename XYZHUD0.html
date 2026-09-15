@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyberpunk AR Spider Pro - 9:16 Gaming Vault</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D Cyber Web Stage -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: #ff007f;
+            --neon-cyan: #00f3ff;
+            --neon-green: #00ff66;
+            --neon-orange: #ff9900;
+            --neon-purple: #b000ff;
+            --bg-deep: #05010a;
+            --glass-bg: rgba(5, 2, 15, 0.88);
+            --glass-border: rgba(0, 243, 255, 0.35);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-deep);
+            color: #fff;
+            font-family: 'Inter', system-ui, sans-serif;
+            user-select: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 9:16 Frame Optimized for Mobile & Desktop */
+        .viewport-916 {
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            max-width: 430px;
+            max-height: 932px;
+            width: 100%;
+            height: 100%;
+            background: #080312;
+            border-radius: 36px;
+            box-shadow: 0 0 50px rgba(0, 243, 255, 0.2), inset 0 0 20px rgba(255, 0, 127, 0.15);
+            border: 4px solid #1c152a;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media(max-width: 450px) {
+            .viewport-916 {
+                border-radius: 0;
+                border: none;
+                max-width: 100%;
+                max-height: 100%;
+            }
+        }
+
+        #canvas-container {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+        }
+
+        .glass-hud {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.15);
+        }
+
+        .hud-text-glow {
+            text-shadow: 0 0 8px currentColor;
+        }
+
+        /* Scanline effect for pro gaming feel */
+        .scanlines {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            z-index: 5;
+            pointer-events: none;
+            opacity: 0.4;
+        }
+
+        .ar-corner {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-color: var(--neon-cyan);
+            border-style: solid;
+            pointer-events: none;
+            z-index: 20;
+        }
+        .ar-tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+        .ar-tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+        .ar-bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+        .ar-br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+
+        .fullscreen-modal {
+            position: absolute;
+            inset: 0;
+            background: rgba(4, 1, 10, 0.95);
+            backdrop-filter: blur(20px);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .fullscreen-modal.active {
+            transform: translateY(0);
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--neon-cyan); border-radius: 2px; }
+
+        #toast {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-family: monospace;
+            box-shadow: 0 0 15px var(--neon-cyan);
+            z-index: 200;
+            opacity: 0;
+            transition: all 0.3s;
+            pointer-events: none;
+            text-align: center;
+        }
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .whatsapp-bubble-in {
+            background: #11221c;
+            border: 1px solid rgba(0, 255, 102, 0.3);
+            border-radius: 12px 12px 12px 2px;
+        }
+        .whatsapp-bubble-out {
+            background: #1a153b;
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            border-radius: 12px 12px 2px 12px;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="viewport-916">
+        <div class="scanlines"></div>
+        <div class="ar-corner ar-tl"></div>
+        <div class="ar-corner ar-tr"></div>
+        <div class="ar-corner ar-bl"></div>
+        <div class="ar-corner ar-br"></div>
+
+        <div id="toast">Notification</div>
+
+        <!-- 3D Canvas Stage -->
+        <div id="canvas-container"></div>
+
+        <!-- Top Pro Gaming Telemetry Header -->
+        <div class="absolute top-0 left-0 right-0 z-30 p-3 flex flex-col gap-1.5 pointer-events-none">
+            <div class="flex justify-between items-center glass-hud rounded-xl px-3 py-2 pointer-events-auto border border-[var(--neon-cyan)]/40">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-[var(--neon-green)] animate-ping"></span>
+                    <div>
+                        <span class="text-[10px] font-mono font-bold text-[var(--neon-cyan)] hud-text-glow">SPIDER AR-V9.16</span>
+                        <div class="text-[8px] font-mono text-gray-300">HP: <span id="hud-hp" class="text-[var(--neon-green)] font-bold">100</span> | SCORE: <span id="hud-score" class="text-[var(--neon-pink)] font-bold">0</span></div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="toggleGameMode()" id="game-mode-btn" class="px-2.5 py-1 rounded bg-[var(--neon-cyan)]/20 border border-[var(--neon-cyan)] text-[9px] font-mono text-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/40 font-bold">🎮 GAME MODE</button>
+                    <button onclick="toggleHudOverlay()" class="p-1.5 rounded bg-black/60 border border-[var(--glass-border)] text-[var(--neon-pink)] hover:bg-black/90"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Toggleable AR HUD Layer -->
+        <div id="main-hud-layer" class="absolute inset-0 z-20 flex flex-col justify-between p-3 pt-16 pb-20 pointer-events-none">
+            
+            <!-- Center Crosshair & Target Lock Indicator -->
+            <div class="flex-1 flex items-center justify-center pointer-events-none">
+                <div class="relative w-16 h-16 flex items-center justify-center opacity-60">
+                    <div class="absolute inset-0 border border-dashed border-[var(--neon-cyan)] rounded-full animate-spin" style="animation-duration: 10s;"></div>
+                    <div class="w-2 h-2 bg-[var(--neon-pink)] rounded-full shadow-[0_0_10px_var(--neon-pink)]"></div>
+                    <span class="absolute -bottom-6 text-[8px] font-mono text-[var(--neon-cyan)] tracking-widest">AR-LOCK ACTIVE</span>
+                </div>
+            </div>
+
+            <!-- Bottom Action & Navigation Deck -->
+            <div class="pointer-events-auto flex flex-col gap-2">
+                
+                <!-- Camera Distance & Speed Adjuster -->
+                <div class="glass-hud rounded-xl p-2 flex items-center justify-between text-[9px] font-mono text-gray-300">
+                    <span class="text-[var(--neon-cyan)]">ZOOM:</span>
+                    <input type="range" min="30" max="140" value="70" oninput="adjustCameraZoom(this.value)" class="w-32 accent-[var(--neon-cyan)] cursor-pointer">
+                    <button onclick="shootSpiderWebProjectiles()" class="px-2 py-1 bg-[var(--neon-pink)]/20 border border-[var(--neon-pink)] text-[var(--neon-pink)] rounded font-bold hover:bg-[var(--neon-pink)]/40">🕸️ SHOOT</button>
+                </div>
+
+                <!-- Primary Action Hub Bar -->
+                <div class="grid grid-cols-4 gap-1.5">
+                    <button onclick="openModal('media-modal')" class="glass-hud p-2 rounded-xl flex flex-col items-center justify-center text-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/20 transition border border-[var(--neon-cyan)]/40">
+                        <i data-lucide="folder-open" class="w-4 h-4 mb-1"></i>
+                        <span class="text-[8px] font-mono font-bold">MEDIA VAULT</span>
+                    </button>
+                    <button onclick="openModal('whatsapp-modal')" class="glass-hud p-2 rounded-xl flex flex-col items-center justify-center text-[var(--neon-green)] hover:bg-[var(--neon-green)]/20 transition border border-[var(--neon-green)]/40">
+                        <i data-lucide="message-square" class="w-4 h-4 mb-1"></i>
+                        <span class="text-[8px] font-mono font-bold">WHATSAPP</span>
+                    </button>
+                    <button onclick="triggerSpiderJump()" class="glass-hud p-2 rounded-xl flex flex-col items-center justify-center text-[var(--neon-pink)] hover:bg-[var(--neon-pink)]/20 transition border border-[var(--neon-pink)]/40">
+                        <i data-lucide="zap" class="w-4 h-4 mb-1"></i>
+                        <span class="text-[8px] font-mono font-bold">LEAP SPIDER</span>
+                    </button>
+                    <button onclick="openModal('stats-modal')" class="glass-hud p-2 rounded-xl flex flex-col items-center justify-center text-[var(--neon-orange)] hover:bg-[var(--neon-orange)]/20 transition border border-[var(--neon-orange)]/40">
+                        <i data-lucide="activity" class="w-4 h-4 mb-1"></i>
+                        <span class="text-[8px] font-mono font-bold">ANALYTICS</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= FULLSCREEN MODALS (No new windows, inside app) ================= -->
+
+        <!-- 1. Universal Media Vault & File Uploader Modal -->
+        <div id="media-modal" class="fullscreen-modal p-4 flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="folder-open" class="w-5 h-5 text-[var(--neon-cyan)]"></i>
+                    <h3 class="text-xs font-bold font-mono text-[var(--neon-cyan)] tracking-wider">UNIVERSAL MEDIA & FILE VAULT</h3>
+                </div>
+                <button onclick="closeModal('media-modal')" class="text-gray-400 hover:text-white p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto py-3 space-y-3">
+                <!-- Upload Dropzone -->
+                <div class="border-2 border-dashed border-[var(--neon-cyan)]/60 rounded-2xl p-4 text-center bg-[var(--neon-cyan)]/5">
+                    <i data-lucide="upload-cloud" class="w-8 h-8 mx-auto text-[var(--neon-cyan)] mb-1"></i>
+                    <p class="text-[11px] font-mono font-bold text-white">Upload Images, Audio, Video, Docs or WhatsApp Chats</p>
+                    <p class="text-[9px] font-mono text-gray-400 mt-0.5">Instant preview & AR telemetry tracking</p>
+                    <input type="file" id="universal-file-input" multiple accept="audio/*,video/*,image/*,.txt,.pdf,.docx" class="hidden" onchange="handleFilesUpload(this.files)">
+                    <button onclick="document.getElementById('universal-file-input').click()" class="mt-3 px-4 py-1.5 bg-[var(--neon-cyan)] text-black font-bold rounded-xl text-[10px] font-mono">SELECT FILES</button>
+                </div>
+
+                <!-- Media Preview Gallery List -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-[10px] font-mono text-[var(--neon-pink)]">
+                        <span>VAULT STORAGE (<span id="media-count">0</span> items)</span>
+                        <button onclick="clearAllVaultFiles()" class="text-gray-400 hover:text-white text-[9px]">CLEAR ALL</button>
+                    </div>
+                    <div id="media-gallery-container" class="space-y-2">
+                        <div class="p-4 rounded-xl bg-black/60 border border-gray-800 text-center text-gray-400 text-[10px] font-mono">
+                            No files uploaded. Select files above to preview them instantly inside the vault!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. WhatsApp Content & Chat Viewer Modal -->
+        <div id="whatsapp-modal" class="fullscreen-modal p-4 flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="message-square" class="w-5 h-5 text-[var(--neon-green)]"></i>
+                    <h3 class="text-xs font-bold font-mono text-[var(--neon-green)] tracking-wider">WHATSAPP CHAT & MEDIA VIEWER</h3>
+                </div>
+                <button onclick="closeModal('whatsapp-modal')" class="text-gray-400 hover:text-white p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto py-3 space-y-3">
+                <div class="p-3 rounded-xl bg-black/80 border border-[var(--neon-green)]/50">
+                    <label class="block font-mono text-[var(--neon-green)] text-[10px] mb-1">📂 IMPORT WHATSAPP CHAT EXPORT (.TXT)</label>
+                    <p class="text-[9px] text-gray-400 mb-2">Upload your exported WhatsApp `.txt` file to parse chat logs into immersive chat bubbles.</p>
+                    <input type="file" id="whatsapp-file-input" accept=".txt" class="w-full text-[10px] text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-[var(--neon-green)] file:text-black cursor-pointer" onchange="parseWhatsAppExport(this.files[0])">
+                </div>
+
+                <!-- Chat Feed Simulation -->
+                <div class="flex flex-col gap-2 p-3 rounded-xl bg-black/90 border border-gray-800 min-h-[300px]" id="whatsapp-chat-feed">
+                    <div class="whatsapp-bubble-in p-2.5 text-[11px] font-mono">
+                        <div class="text-[8px] text-[var(--neon-green)] font-bold">CyberDev • 10:14 AM</div>
+                        Welcome to WhatsApp Cyber Vault sync! Upload your exported chat `.txt` or sample chat logs below.
+                    </div>
+                    <div class="whatsapp-bubble-out p-2.5 text-[11px] font-mono self-end max-w-[85%]">
+                        <div class="text-[8px] text-[var(--neon-cyan)] font-bold">Spider AR User • 10:15 AM</div>
+                        Chat parser is ready and fully integrated! 🚀
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Analytics & Telemetry HUD Modal -->
+        <div id="stats-modal" class="fullscreen-modal p-4 flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="activity" class="w-5 h-5 text-[var(--neon-orange)]"></i>
+                    <h3 class="text-xs font-bold font-mono text-[var(--neon-orange)] tracking-wider">SYSTEM TELEMETRY & SPIDER STATS</h3>
+                </div>
+                <button onclick="closeModal('stats-modal')" class="text-gray-400 hover:text-white p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto py-3 space-y-3 font-mono text-xs">
+                <div class="p-3 rounded-xl bg-black/80 border border-[var(--neon-orange)]/40 space-y-2">
+                    <div class="flex justify-between text-[11px]">
+                        <span class="text-gray-400">FPS RENDER RATE:</span>
+                        <span class="text-[var(--neon-green)] font-bold">60.0 FPS</span>
+                    </div>
+                    <div class="flex justify-between text-[11px]">
+                        <span class="text-gray-400">SPIDER VELOCITY:</span>
+                        <span class="text-[var(--neon-cyan)] font-bold">14.2 m/s</span>
+                    </div>
+                    <div class="flex justify-between text-[11px]">
+                        <span class="text-gray-400">WEB NODES SYNCHRONIZED:</span>
+                        <span class="text-[var(--neon-pink)] font-bold">24 / 24</span>
+                    </div>
+                    <div class="flex justify-between text-[11px]">
+                        <span class="text-gray-400">GAME MODE:</span>
+                        <span id="stat-game-status" class="text-[var(--neon-orange)] font-bold">STANDBY</span>
+                    </div>
+                </div>
+                <button onclick="triggerSpecialPulse()" class="w-full py-2 bg-[var(--neon-orange)] text-black font-bold rounded-xl text-xs">✨ EXECUTE SYSTEM PULSE</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        let hudVisible = true;
+        function toggleHudOverlay() {
+            hudVisible = !hudVisible;
+            const layer = document.getElementById('main-hud-layer');
+            layer.style.opacity = hudVisible ? '1' : '0.1';
+            showToast(hudVisible ? '👁️ HUD Visible' : '👁️ HUD Minimized');
+        }
+
+        let gameModeActive = false;
+        function toggleGameMode() {
+            gameModeActive = !gameModeActive;
+            const btn = document.getElementById('game-mode-btn');
+            const statStatus = document.getElementById('stat-game-status');
+            if(gameModeActive) {
+                btn.classList.add('bg-[var(--neon-green)]/40', 'border-[var(--neon-green)]', 'text-[var(--neon-green)]');
+                statStatus.textContent = 'ACTIVE (RUN & SHOOT)';
+                showToast('🎮 AR Spider Gaming Mode Engaged! Dodge & Shoot Nodes!');
+            } else {
+                btn.classList.remove('bg-[var(--neon-green)]/40', 'border-[var(--neon-green)]', 'text-[var(--neon-green)]');
+                statStatus.textContent = 'STANDBY';
+                showToast('🎮 Gaming Mode Paused');
+            }
+        }
+
+        let vaultFiles = [];
+
+        function handleFilesUpload(files) {
+            if(!files || files.length === 0) return;
+            for(let file of files) {
+                const url = URL.createObjectURL(file);
+                vaultFiles.push({
+                    name: file.name,
+                    size: (file.size / 1024).toFixed(1) + ' KB',
+                    type: file.type,
+                    url: url
+                });
+            }
+            renderVaultFilesGallery();
+            showToast(`📁 Successfully uploaded ${files.length} file(s) into Vault!`);
+        }
+
+        function renderVaultFilesGallery() {
+            const container = document.getElementById('media-gallery-container');
+            document.getElementById('media-count').textContent = vaultFiles.length;
+
+            if(vaultFiles.length === 0) {
+                container.innerHTML = `
+                    <div class="p-4 rounded-xl bg-black/60 border border-gray-800 text-center text-gray-400 text-[10px] font-mono">
+                        No files uploaded. Select files above to preview them instantly inside the vault!
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = vaultFiles.map((f, i) => {
+                let previewHTML = '';
+                if(f.type.startsWith('image/')) {
+                    previewHTML = `<img src="${f.url}" class="w-full h-32 object-cover rounded-lg border border-[var(--neon-cyan)] mt-2">`;
+                } else if(f.type.startsWith('audio/')) {
+                    previewHTML = `<audio controls src="${f.url}" class="w-full h-10 mt-2"></audio>`;
+                } else if(f.type.startsWith('video/')) {
+                    previewHTML = `<video controls src="${f.url}" class="w-full h-36 object-cover rounded-lg border border-[var(--neon-pink)] mt-2"></video>`;
+                } else {
+                    previewHTML = `<div class="p-2.5 bg-black/90 rounded-lg border border-[var(--neon-green)] mt-2 text-[10px] font-mono text-[var(--neon-green)]">📄 Document Loaded & Parsed</div>`;
+                }
+
+                return `
+                    <div class="p-3 rounded-xl bg-black/80 border border-[var(--glass-border)] space-y-1.5">
+                        <div class="flex justify-between items-center text-[10px] font-mono">
+                            <span class="text-[var(--neon-cyan)] font-bold truncate max-w-[220px]">${f.name}</span>
+                            <span class="text-gray-400 text-[8px]">${f.size}</span>
+                        </div>
+                        ${previewHTML}
+                        <div class="flex justify-end gap-2 pt-1">
+                            <a href="${f.url}" target="_blank" class="px-2.5 py-1 bg-[var(--neon-cyan)]/20 border border-[var(--neon-cyan)] rounded text-[9px] font-mono text-[var(--neon-cyan)]">OPEN</a>
+                            <button onclick="removeVaultFile(${i})" class="px-2.5 py-1 bg-red-950/40 border border-red-500 rounded text-[9px] font-mono text-red-300">DELETE</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function removeVaultFile(index) {
+            vaultFiles.splice(index, 1);
+            renderVaultFilesGallery();
+            showToast('🗑️ File removed from vault.');
+        }
+
+        function clearAllVaultFiles() {
+            vaultFiles = [];
+            renderVaultFilesGallery();
+            showToast('🗑️ Vault cleared.');
+        }
+
+        function parseWhatsAppExport(file) {
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split('\n').slice(0, 50); // Read first 50 lines
+                const feed = document.getElementById('whatsapp-chat-feed');
+                feed.innerHTML = lines.map((line, idx) => {
+                    if(!line.trim()) return '';
+                    const isOut = idx % 2 === 0;
+                    return `
+                        <div class="${isOut ? 'whatsapp-bubble-out self-end max-w-[85%]' : 'whatsapp-bubble-in'} p-2.5 text-[11px] font-mono">
+                            <div class="text-[8px] text-[var(--neon-cyan)] font-bold">WhatsApp Export • Line ${idx+1}</div>
+                            ${escapeHtml(line)}
+                        </div>
+                    `;
+                }).join('');
+                showToast('💬 WhatsApp Chat Log Parsed Successfully!');
+            };
+            reader.readAsText(file);
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x080312, 0.0035);
+
+        const camera = new THREE.PerspectiveCamera(65, container.clientWidth / container.clientHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x080312, 1);
+        container.appendChild(renderer.domElement);
+
+        // Ambient & Point Lighting
+        scene.add(new THREE.AmbientLight(0x442255));
+        const pointLight = new THREE.PointLight(0x00f3ff, 3, 600);
+        scene.add(pointLight);
+
+        // Cyber Grid & Web Lines
+        const webGroup = new THREE.Group();
+        scene.add(webGroup);
+
+        const lineMat = new THREE.LineBasicMaterial({ color: 0x00f3ff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending });
+        const radials = 20;
+        const rings = 8;
+        const maxRadius = 320;
+
+        for(let i=0; i<radials; i++) {
+            const angle = (i/radials) * Math.PI * 2;
+            const pts = [new THREE.Vector3(0,0,0), new THREE.Vector3(Math.cos(angle)*maxRadius, Math.sin(angle)*maxRadius, (Math.random()-0.5)*20)];
+            webGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
+        }
+
+        for(let r=1; r<=rings; r++) {
+            const curR = (r/rings) * maxRadius;
+            const pts = [];
+            for(let i=0; i<=radials; i++) {
+                const angle = (i/radials) * Math.PI * 2;
+                pts.push(new THREE.Vector3(Math.cos(angle)*curR, Math.sin(angle)*curR, (Math.random()-0.5)*15));
+            }
+            webGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
+        }
+
+        // Spider Avatar & Projectiles
+        const spiderGroup = new THREE.Group();
+        const spiderMat = new THREE.MeshPhongMaterial({ color: 0x111111, emissive: 0xff007f, emissiveIntensity: 1.5, shininess: 90 });
+        const spiderBody = new THREE.Mesh(new THREE.SphereGeometry(3.5, 16, 16), spiderMat);
+        spiderGroup.add(spiderBody);
+
+        // Spider Legs
+        for(let l=0; l<8; l++) {
+            const legGeo = new THREE.BufferGeometry();
+            const angle = (l/8) * Math.PI * 2;
+            const legPts = [
+                new THREE.Vector3(0,0,0),
+                new THREE.Vector3(Math.cos(angle)*6, Math.sin(angle)*6, -2),
+                new THREE.Vector3(Math.cos(angle)*10, Math.sin(angle)*10, -5)
+            ];
+            legGeo.setFromPoints(legPts);
+            const legMesh = new THREE.Line(legGeo, new THREE.LineBasicMaterial({ color: 0xff007f }));
+            spiderGroup.add(legMesh);
+        }
+        scene.add(spiderGroup);
+
+        let spiderPos = new THREE.Vector3(0, 0, 10);
+        let spiderVel = new THREE.Vector3(0, 0, 0);
+        let score = 0;
+        let hp = 100;
+
+        // Projectiles array for shooting game
+        let projectiles = [];
+        let targets = [];
+
+        // Spawn targets (data nodes)
+        for(let t=0; t<6; t++) {
+            const tGeo = new THREE.BoxGeometry(4, 4, 4);
+            const tMat = new THREE.MeshPhongMaterial({ color: 0x00ff66, emissive: 0x00ff66, emissiveIntensity: 0.8 });
+            const targetMesh = new THREE.Mesh(tGeo, tMat);
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 60 + Math.random() * 100;
+            targetMesh.position.set(Math.cos(angle)*dist, Math.sin(angle)*dist, (Math.random()-0.5)*20);
+            scene.add(targetMesh);
+            targets.push({ mesh: targetMesh, active: true });
+        }
+
+        function triggerSpiderJump() {
+            spiderVel.z = 8;
+            showToast('🚀 Spider Leap Activated!');
+        }
+
+        function shootSpiderWebProjectiles() {
+            const pGeo = new THREE.SphereGeometry(1.2, 8, 8);
+            const pMat = new THREE.MeshBasicMaterial({ color: 0xff007f });
+            const pMesh = new THREE.Mesh(pGeo, pMat);
+            pMesh.position.copy(spiderGroup.position);
+            
+            // Shoot in random forward direction or towards a target
+            const dir = new THREE.Vector3((Math.random()-0.5)*2, (Math.random()-0.5)*2, Math.random()).normalize();
+            scene.add(pMesh);
+            projectiles.push({ mesh: pMesh, dir: dir, speed: 4.5 });
+            showToast('🕸️ Web Projectile Fired!');
+        }
+
+        function triggerSpecialPulse() {
+            pointLight.color.setHex(0x00ff66);
+            setTimeout(() => pointLight.color.setHex(0x00f3ff), 1200);
+            showToast('✨ AR System Pulse Emitted!');
+        }
+
+        let cameraZoomVal = 70;
+        function adjustCameraZoom(val) {
+            cameraZoomVal = parseFloat(val);
+        }
+
+        let clock = new THREE.Clock();
+        let time = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            time += delta;
+
+            webGroup.rotation.z += 0.003;
+
+            // Game Mode Physics & Interaction
+            if(gameModeActive) {
+                spiderVel.z -= 9.8 * delta * 0.4; // Gravity
+                spiderPos.addScaledVector(spiderVel, delta * 10);
+                if(spiderPos.z < 0) {
+                    spiderPos.z = 0;
+                    spiderVel.z = 0;
+                }
+
+                // Spider idle running movement on circular path
+                spiderPos.x = Math.sin(time * 2) * 45;
+                spiderPos.y = Math.cos(time * 2) * 45;
+
+                // Update Projectiles
+                projectiles.forEach((p, idx) => {
+                    p.mesh.position.addScaledVector(p.dir, p.speed);
+                    // Check collision with targets
+                    targets.forEach(t => {
+                        if(t.active && p.mesh.position.distanceTo(t.mesh.position) < 8) {
+                            t.active = false;
+                            scene.remove(t.mesh);
+                            score += 150;
+                            document.getElementById('hud-score').textContent = score;
+                            showToast('🎯 Data Node Captured (+150 pts)!');
+                        }
+                    });
+                });
+            } else {
+                spiderPos.x = Math.sin(time * 0.8) * 35;
+                spiderPos.y = Math.cos(time * 0.8) * 35;
+                spiderPos.z = Math.sin(time * 1.5) * 8;
+            }
+
+            spiderGroup.position.copy(spiderPos);
+            spiderGroup.rotation.z = time * 2;
+
+            // Camera positioning based on zoom slider
+            const targetCamPos = new THREE.Vector3(
+                spiderPos.x + Math.sin(time * 0.3) * (cameraZoomVal * 0.6),
+                spiderPos.y - cameraZoomVal,
+                spiderPos.z + (cameraZoomVal * 0.5)
+            );
+            camera.position.lerp(targetCamPos, 0.08);
+            camera.lookAt(spiderGroup.position);
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
