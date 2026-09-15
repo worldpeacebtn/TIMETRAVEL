@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Web Data Vault - Explorer Mode</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D Visuals -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <style>
+        :root {
+            --theme-color: #ff00ff;
+            --bg-universe: #05020a;
+            --glass-bg: rgba(15, 5, 25, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-universe);
+            color: #fff;
+            font-family: 'Inter', system-ui, sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        
+        .ui-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+        }
+        .pointer-events-auto { pointer-events: auto; }
+        
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+        }
+        
+        .theme-glow { text-shadow: 0 0 10px var(--theme-color), 0 0 20px var(--theme-color); }
+        .theme-border { border-color: var(--theme-color) !important; }
+        .theme-bg-glow { box-shadow: 0 0 15px var(--theme-color), inset 0 0 10px var(--theme-color); }
+        
+        .nav-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            width: 100%;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            color: rgba(255,255,255,0.7);
+            border: 1px solid transparent;
+        }
+        .nav-btn:hover, .nav-btn.active {
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            border: 1px solid var(--theme-color);
+            box-shadow: inset 0 0 15px rgba(255,255,255,0.05);
+        }
+
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.2s ease;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.7);
+        }
+        .action-btn:hover {
+            border-color: var(--theme-color);
+            color: #fff;
+            background: rgba(255,255,255,0.1);
+        }
+
+        #joystick-area {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.1);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #joystick-knob {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            border: 2px solid var(--theme-color);
+            box-shadow: 0 0 15px var(--theme-color);
+            position: absolute;
+            transition: transform 0.1s ease-out;
+        }
+        
+        .cam-mode-btn {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+            transition: all 0.3s ease;
+        }
+        .cam-mode-btn.active {
+            background: var(--theme-color);
+            color: #000;
+            font-weight: bold;
+            box-shadow: 0 0 15px var(--theme-color);
+        }
+
+        .html-label {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            background: var(--glass-bg);
+            border: 1px solid var(--theme-color);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-family: monospace;
+            color: #fff;
+            pointer-events: auto;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            transition: all 0.2s;
+            opacity: 0;
+            z-index: 20;
+        }
+        .html-label.visible { opacity: 1; }
+        .html-label:hover {
+            background: var(--theme-color);
+            color: #000;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        .scanline {
+            background: linear-gradient(to bottom, transparent 50%, rgba(255, 255, 255, 0.02) 51%);
+            background-size: 100% 4px;
+            position: absolute;
+            inset: 0;
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 8px;
+            border-radius: 4px;
+            background: var(--theme-color);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px var(--theme-color);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+        }
+
+        #episode-preview {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+        }
+        #episode-preview.show {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div id="canvas-container"></div>
+    <div class="scanline"></div>
+    <div id="labels-container" style="position: absolute; inset: 0; pointer-events: none; z-index: 15;"></div>
+
+    <div class="ui-layer">
+        
+        <!-- Left Panel -->
+        <div class="absolute left-4 top-4 bottom-24 w-64 glass-panel p-4 flex flex-col pointer-events-auto hide-on-mobile hidden md:flex">
+            <div class="flex items-center gap-3 mb-8 px-2">
+                <i data-lucide="menu" class="w-6 h-6 text-white cursor-pointer hover:text-[var(--theme-color)] transition-colors"></i>
+                <div>
+                    <h1 class="text-sm font-black tracking-widest text-[var(--theme-color)] theme-glow uppercase">Arachna Vault</h1>
+                    <p class="text-[8px] text-gray-400 tracking-widest uppercase">Web Data Experience</p>
+                </div>
+            </div>
+
+            <div class="space-y-2 flex-1">
+                <button class="nav-btn active"><i data-lucide="compass" class="w-5 h-5"></i> <span class="text-xs font-bold tracking-wide">EXPLORER</span></button>
+                <button class="nav-btn"><i data-lucide="database" class="w-5 h-5"></i> <span class="text-xs font-bold tracking-wide">VAULTS</span></button>
+                <button class="nav-btn"><i data-lucide="eye" class="w-5 h-5"></i> <span class="text-xs font-bold tracking-wide">VISUALS</span></button>
+                <button class="nav-btn"><i data-lucide="music" class="w-5 h-5"></i> <span class="text-xs font-bold tracking-wide">AUDIO</span></button>
+                <button class="nav-btn"><i data-lucide="layers" class="w-5 h-5"></i> <span class="text-xs font-bold tracking-wide">HUD</span></button>
+                <button class="nav-btn"><i data-lucide="settings" class="w-5 h-5"></i> <span class="text-xs font-bold tracking-wide">SETTINGS</span></button>
+            </div>
+
+            <div class="mt-4 p-4 rounded-xl bg-white/5 border border-white/10">
+                <p class="text-[9px] text-gray-400 mb-3 uppercase tracking-wider">Active Sector</p>
+                <div class="text-sm font-mono text-[var(--theme-color)] theme-glow" id="ui-sector-name">WEB CENTER</div>
+                <div class="flex items-center justify-between mt-4">
+                    <span class="text-[10px] text-gray-400">DATA SYNC</span>
+                    <div class="w-8 h-4 rounded-full bg-[var(--theme-color)] relative cursor-pointer theme-bg-glow shadow-lg shadow-[var(--theme-color)]">
+                        <div class="absolute right-1 top-1 w-2 h-2 bg-black rounded-full"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Music Player -->
+        <div class="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-6 py-3 flex items-center gap-6 pointer-events-auto hidden sm:flex">
+            <div class="flex flex-col">
+                <span class="text-[8px] text-gray-400 uppercase tracking-widest">Now Intercepting</span>
+                <span class="text-xs font-bold text-white tracking-wide" id="ui-now-playing">Arachna_Core_Signal.wav</span>
+            </div>
+            <div class="w-48 h-6 flex items-center gap-1 justify-center opacity-70">
+                <!-- Fake Audio Spectrum -->
+                <div class="w-1 h-3 bg-[var(--theme-color)] rounded-full animate-[pulse_1s_ease-in-out_infinite]"></div>
+                <div class="w-1 h-5 bg-[var(--theme-color)] rounded-full animate-[pulse_1.2s_ease-in-out_infinite]"></div>
+                <div class="w-1 h-2 bg-[var(--theme-color)] rounded-full animate-[pulse_0.8s_ease-in-out_infinite]"></div>
+                <div class="w-1 h-6 bg-[var(--theme-color)] rounded-full animate-[pulse_1.5s_ease-in-out_infinite]"></div>
+                <div class="w-1 h-4 bg-[var(--theme-color)] rounded-full animate-[pulse_1.1s_ease-in-out_infinite]"></div>
+                <div class="w-1 h-3 bg-cyan-400 rounded-full animate-[pulse_0.9s_ease-in-out_infinite]"></div>
+                <div class="w-1 h-5 bg-cyan-400 rounded-full animate-[pulse_1.3s_ease-in-out_infinite]"></div>
+                <div class="w-1 h-2 bg-[var(--theme-color)] rounded-full animate-[pulse_1.4s_ease-in-out_infinite]"></div>
+            </div>
+            <div class="flex items-center gap-4 text-gray-400">
+                <i data-lucide="skip-back" class="w-4 h-4 hover:text-white cursor-pointer"></i>
+                <i data-lucide="pause" class="w-4 h-4 text-white cursor-pointer"></i>
+                <i data-lucide="skip-forward" class="w-4 h-4 hover:text-white cursor-pointer"></i>
+            </div>
+        </div>
+
+        <!-- Top Right Icons -->
+        <div class="absolute top-4 right-4 flex gap-3 pointer-events-auto">
+            <button class="glass-panel w-10 h-10 flex items-center justify-center hover:bg-white/10 transition-colors">
+                <i data-lucide="camera" class="w-5 h-5 text-gray-300"></i>
+            </button>
+            <button class="glass-panel w-10 h-10 flex items-center justify-center hover:bg-white/10 transition-colors">
+                <i data-lucide="eye" class="w-5 h-5 text-[var(--theme-color)] theme-glow"></i>
+            </button>
+        </div>
+
+        <!-- Right Action Menu -->
+        <div class="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 pointer-events-auto">
+            <p class="text-[8px] text-gray-500 tracking-widest text-center mb-1">ACTIONS</p>
+            <button class="action-btn" onclick="triggerAction('loop')">
+                <i data-lucide="infinity" class="w-5 h-5"></i>
+                <span>Loop</span>
+            </button>
+            <button class="action-btn" onclick="triggerAction('sweep')">
+                <i data-lucide="radar" class="w-5 h-5"></i>
+                <span>Sweep</span>
+            </button>
+            <button class="action-btn" onclick="triggerAction('inject')">
+                <i data-lucide="zap" class="w-5 h-5"></i>
+                <span>Inject</span>
+            </button>
+            <button class="action-btn" onclick="triggerAction('ai')">
+                <i data-lucide="bot" class="w-5 h-5"></i>
+                <span>AI Core</span>
+            </button>
+        </div>
+
+        <!-- Bottom Left Joystick -->
+        <div class="absolute bottom-6 left-6 pointer-events-auto hidden sm:block">
+            <div id="joystick-area">
+                <div class="absolute inset-0 rounded-full border border-white/5 scale-75"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <span class="absolute top-2 text-[8px] text-gray-500 font-mono">Y</span>
+                    <span class="absolute right-2 text-[8px] text-[var(--theme-color)] font-mono">X</span>
+                    <span class="absolute bottom-2 text-[8px] text-cyan-500 font-mono">Z</span>
+                </div>
+                <div id="joystick-knob"></div>
+            </div>
+        </div>
+
+        <!-- Bottom Center Camera Controls -->
+        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 glass-panel p-4 flex flex-col gap-4 pointer-events-auto min-w-[300px] max-w-[90vw]">
+            <div class="flex justify-between items-center px-2">
+                <span class="text-[9px] text-gray-400 tracking-widest">CAMERA</span>
+                <div class="flex gap-1 bg-black/40 rounded-full p-1 border border-white/5">
+                    <button class="cam-mode-btn" data-mode="free">FREE</button>
+                    <button class="cam-mode-btn" data-mode="follow">FOLLOW</button>
+                    <button class="cam-mode-btn active" data-mode="cinematic">CINEMATIC</button>
+                    <button class="cam-mode-btn" data-mode="overview">OVERVIEW</button>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 px-2">
+                <span class="text-[9px] text-gray-400 tracking-widest">ZOOM</span>
+                <input type="range" id="zoom-slider" min="0.5" max="3" step="0.1" value="1.5">
+                <span class="text-[10px] font-mono text-white" id="zoom-val">1.5x</span>
+            </div>
+        </div>
+
+        <!-- Bottom Right Visualizer (Decorative) -->
+        <div class="absolute bottom-6 right-6 pointer-events-auto hidden md:block">
+            <div class="glass-panel p-4 w-48 h-20 flex items-end gap-[2px] opacity-70">
+                <!-- Generated by JS -->
+                <div id="mini-vis" class="w-full h-full flex items-end gap-[2px]"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Episode / Vault Preview Modal -->
+    <div id="episode-preview" class="glass-panel p-6 max-w-sm w-full">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h3 class="text-xs text-[var(--theme-color)] font-mono tracking-widest mb-1">DATA VAULT EXTRACT</h3>
+                <h2 id="ep-title" class="text-xl font-bold text-white">Subject_Alpha</h2>
+            </div>
+            <button onclick="closePreview()" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="aspect-video bg-black/50 rounded-lg border border-white/10 mb-4 flex items-center justify-center relative overflow-hidden">
+             <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at center, var(--theme-color) 0%, transparent 70%);"></div>
+             <i data-lucide="database-zap" class="w-12 h-12 text-[var(--theme-color)] animate-pulse relative z-10"></i>
+        </div>
+        <p id="ep-desc" class="text-xs text-gray-300 font-mono leading-relaxed">
+            Encrypted contents decoded. Establishing neural handshake with target entity...
+        </p>
+        <button class="w-full mt-4 py-2 rounded-lg bg-[var(--theme-color)]/20 border border-[var(--theme-color)] text-white text-xs font-bold tracking-widest hover:bg-[var(--theme-color)] hover:text-black transition-all">
+            ACCESS TERMINAL
+        </button>
+    </div>
+
+    <script>
+        const appState = {
+            baseColor: new THREE.Color(0xff00ff),
+            targetColor: new THREE.Color(0xff00ff),
+            cameraMode: 'cinematic', // free, follow, cinematic, overview
+            selectedNode: null,
+            spiderTarget: new THREE.Vector3(0,0,0),
+            zoom: 1.5,
+            joystick: { x: 0, y: 0 },
+            helixActive: false,
+            helixNodes: [],
+            helixLabels: [],
+            totems: [],
+            time: 0
+        };
+
+        const THEMES = {
+            pink: 0xff00ff,
+            orange: 0xff8800,
+            yellow: 0xffff00,
+            green: 0x00ff00,
+            cyan: 0x00ffff,
+            blue: 0x3366ff,
+            purple: 0x9933ff,
+            red: 0xff3333,
+            silver: 0xaaaaaa,
+            gold: 0xffd700
+        };
+
+        const PREY_TYPES = [
+            { name: 'Mouse', color: THEMES.pink, rings: 1 },
+            { name: 'Bunny', color: THEMES.orange, rings: 2 },
+            { name: 'Wasp', color: THEMES.yellow, rings: 3 },
+            { name: 'Bear', color: THEMES.green, rings: 4 },
+            { name: 'Fox', color: THEMES.cyan, rings: 5 },
+            { name: 'Wolf', color: THEMES.blue, rings: 6 },
+            { name: 'Seahorse', color: THEMES.purple, rings: 7 },
+            { name: 'Dragon', color: THEMES.red, rings: 8 }
+        ];
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        function updateThemeCSS() {
+            document.documentElement.style.setProperty('--theme-color', '#' + appState.baseColor.getHexString());
+        }
+
+        // Fake visualizer bars
+        const visContainer = document.getElementById('mini-vis');
+        for(let i=0; i<30; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'flex-1 bg-[var(--theme-color)] rounded-t-sm transition-all duration-75';
+            bar.style.height = `${Math.random()*100}%`;
+            bar.style.opacity = '0.5';
+            visContainer.appendChild(bar);
+        }
+        setInterval(() => {
+            Array.from(visContainer.children).forEach(bar => {
+                bar.style.height = `${20 + Math.random()*80}%`;
+            });
+        }, 150);
+
+        // Camera mode buttons
+        document.querySelectorAll('.cam-mode-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.cam-mode-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                appState.cameraMode = e.target.dataset.mode;
+            });
+        });
+
+        // Zoom slider
+        const zoomSlider = document.getElementById('zoom-slider');
+        zoomSlider.addEventListener('input', (e) => {
+            appState.zoom = parseFloat(e.target.value);
+            document.getElementById('zoom-val').textContent = appState.zoom.toFixed(2) + 'x';
+        });
+
+        // Joystick Logic
+        const joystickArea = document.getElementById('joystick-area');
+        const joystickKnob = document.getElementById('joystick-knob');
+        let joyActive = false;
+        
+        function handleJoystick(e) {
+            if(!joyActive) return;
+            const rect = joystickArea.getBoundingClientRect();
+            const centerX = rect.left + rect.width/2;
+            const centerY = rect.top + rect.height/2;
+            
+            let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            let clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            let dx = clientX - centerX;
+            let dy = clientY - centerY;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            const maxDist = rect.width/2 - 20;
+            
+            if(distance > maxDist) {
+                dx = (dx/distance) * maxDist;
+                dy = (dy/distance) * maxDist;
+            }
+            
+            joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+            appState.joystick.x = dx / maxDist;
+            appState.joystick.y = dy / maxDist;
+        }
+
+        joystickArea.addEventListener('mousedown', () => joyActive = true);
+        window.addEventListener('mouseup', () => {
+            joyActive = false;
+            joystickKnob.style.transform = `translate(0px, 0px)`;
+            appState.joystick.x = 0;
+            appState.joystick.y = 0;
+        });
+        window.addEventListener('mousemove', handleJoystick);
+        joystickArea.addEventListener('touchstart', () => joyActive = true, {passive: true});
+        window.addEventListener('touchend', () => { joyActive = false; joystickKnob.style.transform = `translate(0px, 0px)`; appState.joystick.x = 0; appState.joystick.y = 0; });
+        window.addEventListener('touchmove', handleJoystick, {passive: true});
+
+        function triggerAction(type) {
+            console.log("Action triggered:", type);
+            // Flash effect or small anim could go here
+        }
+
+        function closePreview() {
+            document.getElementById('episode-preview').classList.remove('show');
+        }
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x05020a, 0.002);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x05020a, 1);
+        container.appendChild(renderer.domElement);
+
+        const mainGroup = new THREE.Group();
+        scene.add(mainGroup);
+        
+        const webGroup = new THREE.Group();
+        mainGroup.add(webGroup);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+        scene.add(ambientLight);
+        const centerLight = new THREE.PointLight(0xff00ff, 2, 800);
+        scene.add(centerLight);
+        
+        // Dynamic Material that will update globally
+        const globalWireMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true, transparent: true, opacity: 0.6 });
+        const globalSolidMat = new THREE.MeshPhongMaterial({ color: 0xff00ff, emissive: 0x440044, shininess: 100 });
+        const globalLineMat = new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.3 });
+
+        // Build Totem Function (Re-used and optimized)
+        function buildTotem(type) {
+            const group = new THREE.Group();
+            let meshes = [];
+            
+            switch(type) {
+                case 'Mouse':
+                    meshes.push(new THREE.Mesh(new THREE.SphereGeometry(3, 8, 8), globalWireMat));
+                    const me = new THREE.CylinderGeometry(2, 2, 0.5, 16);
+                    const me1 = new THREE.Mesh(me, globalWireMat); me1.position.set(2.5, 2.5, 0); me1.rotation.x = Math.PI/2;
+                    const me2 = new THREE.Mesh(me, globalWireMat); me2.position.set(-2.5, 2.5, 0); me2.rotation.x = Math.PI/2;
+                    meshes.push(me1, me2); break;
+                case 'Bunny':
+                    meshes.push(new THREE.Mesh(new THREE.SphereGeometry(3, 8, 8), globalWireMat));
+                    const be = new THREE.CylinderGeometry(0.5, 1, 6, 8);
+                    const be1 = new THREE.Mesh(be, globalWireMat); be1.position.set(1.5, 4, 0);
+                    const be2 = new THREE.Mesh(be, globalWireMat); be2.position.set(-1.5, 4, 0);
+                    meshes.push(be1, be2); break;
+                case 'Wasp':
+                    const ab = new THREE.Mesh(new THREE.SphereGeometry(2, 12, 12), globalWireMat); ab.scale.set(1, 1.5, 1); ab.rotation.z = Math.PI/2;
+                    const w = new THREE.PlaneGeometry(3, 6);
+                    const w1 = new THREE.Mesh(w, globalSolidMat); w1.position.set(0, 2, 1.5); w1.rotation.x = Math.PI/2;
+                    const w2 = new THREE.Mesh(w, globalSolidMat); w2.position.set(0, 2, -1.5); w2.rotation.x = Math.PI/2;
+                    meshes.push(ab, w1, w2); break;
+                case 'Bear':
+                    meshes.push(new THREE.Mesh(new THREE.SphereGeometry(4, 8, 8), globalWireMat));
+                    const bre = new THREE.SphereGeometry(1.5, 8, 8);
+                    const bre1 = new THREE.Mesh(bre, globalSolidMat); bre1.position.set(3, 3, 0);
+                    const bre2 = new THREE.Mesh(bre, globalSolidMat); bre2.position.set(-3, 3, 0);
+                    meshes.push(bre1, bre2); break;
+                case 'Fox':
+                    const fh = new THREE.Mesh(new THREE.ConeGeometry(3, 6, 4), globalWireMat); fh.rotation.x = Math.PI/2;
+                    const fe = new THREE.ConeGeometry(1, 3, 4);
+                    const fe1 = new THREE.Mesh(fe, globalWireMat); fe1.position.set(2, 2, -2);
+                    const fe2 = new THREE.Mesh(fe, globalWireMat); fe2.position.set(-2, 2, -2);
+                    meshes.push(fh, fe1, fe2); break;
+                case 'Wolf':
+                    const wh = new THREE.Mesh(new THREE.ConeGeometry(4, 7, 5), globalWireMat); wh.rotation.x = Math.PI/2;
+                    const we = new THREE.ConeGeometry(1.5, 2.5, 4);
+                    const we1 = new THREE.Mesh(we, globalSolidMat); we1.position.set(2.5, 2, -2.5);
+                    const we2 = new THREE.Mesh(we, globalSolidMat); we2.position.set(-2.5, 2, -2.5);
+                    meshes.push(wh, we1, we2); break;
+                case 'Seahorse':
+                    for(let i=0; i<5; i++) {
+                        const s = new THREE.Mesh(new THREE.SphereGeometry(2-(i*0.25), 8, 8), globalWireMat);
+                        s.position.set(Math.sin(i)*1.5, i*1.5 - 3, 0);
+                        meshes.push(s);
+                    } break;
+                case 'Dragon':
+                    const dh = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 8), globalWireMat);
+                    const dho = new THREE.ConeGeometry(0.5, 4, 4);
+                    const dh1 = new THREE.Mesh(dho, globalSolidMat); dh1.position.set(1.5, 3, -3); dh1.rotation.x = -Math.PI/4;
+                    const dh2 = new THREE.Mesh(dho, globalSolidMat); dh2.position.set(-1.5, 3, -3); dh2.rotation.x = -Math.PI/4;
+                    meshes.push(dh, dh1, dh2); break;
+                default:
+                    meshes.push(new THREE.Mesh(new THREE.BoxGeometry(4,4,4), globalWireMat));
+            }
+            meshes.forEach(m => group.add(m));
+            return group;
+        }
+
+        const radials = 16;
+        const rings = 10;
+        const webRadius = 250;
+        
+        // Radial threads
+        for(let i=0; i<radials; i++) {
+            const angle = (i/radials) * Math.PI * 2;
+            const pts = [new THREE.Vector3(0,0,0), new THREE.Vector3(Math.cos(angle)*webRadius, Math.sin(angle)*webRadius, (Math.random()-0.5)*20)];
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            webGroup.add(new THREE.Line(geo, globalLineMat));
+        }
+
+        // Spiral / Concentric threads + Prey Placement
+        const preyNodes = [];
+        for(let r=1; r<=rings; r++) {
+            const currentRadius = (r/rings) * webRadius;
+            const pts = [];
+            for(let i=0; i<=radials; i++) {
+                const angle = (i/radials) * Math.PI * 2;
+                // Add natural droop/sag to web
+                const droop = Math.sin(angle * radials/2) * 5;
+                const z = (Math.random()-0.5)*10 + droop;
+                pts.push(new THREE.Vector3(Math.cos(angle)*currentRadius, Math.sin(angle)*currentRadius, z));
+            }
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            webGroup.add(new THREE.Line(geo, globalLineMat));
+
+            // Place Prey on intersections
+            if (r > 2 && Math.random() > 0.3) {
+                const angleIdx = Math.floor(Math.random() * radials);
+                const angle = (angleIdx/radials) * Math.PI * 2;
+                const preyType = PREY_TYPES[r % PREY_TYPES.length];
+                
+                const totem = buildTotem(preyType.name);
+                totem.position.set(Math.cos(angle)*currentRadius, Math.sin(angle)*currentRadius, (Math.random()-0.5)*10);
+                
+                // Invisible interaction sphere
+                const hitMesh = new THREE.Mesh(new THREE.SphereGeometry(10, 8, 8), new THREE.MeshBasicMaterial({visible: false}));
+                hitMesh.position.copy(totem.position);
+                hitMesh.userData = { isPrey: true, type: preyType.name, color: preyType.color, parentGroup: totem };
+                
+                webGroup.add(totem);
+                webGroup.add(hitMesh);
+                preyNodes.push(hitMesh);
+                appState.totems.push(totem);
+            }
+        }
+
+        const spiderGroup = new THREE.Group();
+        const spiderBodyMat = new THREE.MeshPhongMaterial({ color: 0x111111, emissive: 0xff00ff, emissiveIntensity: 0.5 });
+        
+        const abdomen = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 16), spiderBodyMat); abdomen.position.y = -3; abdomen.scale.set(1, 1.5, 1); spiderGroup.add(abdomen);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(2, 16, 16), spiderBodyMat); head.position.y = 3; spiderGroup.add(head);
+        
+        const legsGroup = new THREE.Group();
+        for(let i=0; i<8; i++) {
+            const side = i%2 === 0 ? 1 : -1;
+            const row = Math.floor(i/2);
+            const pts = [
+                new THREE.Vector3(side*2, 0, 1),
+                new THREE.Vector3(side*8, 4 - row*1.5, 5 - row*2),
+                new THREE.Vector3(side*14, -6 - row*1.5, 2 - row*3)
+            ];
+            legsGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), globalLineMat));
+        }
+        spiderGroup.add(legsGroup);
+        scene.add(spiderGroup); // Spider is independent of web rotation
+
+        // Helix generation around target
+        const helixGroup = new THREE.Group();
+        scene.add(helixGroup);
+        
+        function clearHelix() {
+            appState.helixActive = false;
+            helixGroup.clear();
+            appState.helixNodes = [];
+            const container = document.getElementById('labels-container');
+            container.innerHTML = '';
+            appState.helixLabels = [];
+        }
+
+        function spawnHelix(nodeMesh) {
+            clearHelix();
+            appState.helixActive = true;
+            const type = nodeMesh.userData.type;
+            const center = nodeMesh.getWorldPosition(new THREE.Vector3());
+            helixGroup.position.copy(center);
+            
+            const numNodes = 12;
+            const labelsContainer = document.getElementById('labels-container');
+
+            for(let i=0; i<numNodes; i++) {
+                const t = (i / numNodes) * Math.PI * 4; // 2 turns
+                const r = 25 + i;
+                const h = (i - numNodes/2) * 5;
+                
+                // Build tiny version of the totem
+                const miniTotem = buildTotem(type);
+                miniTotem.scale.set(0.4, 0.4, 0.4);
+                miniTotem.position.set(Math.cos(t)*r, Math.sin(t)*r, h);
+                miniTotem.lookAt(0,0,0);
+                
+                helixGroup.add(miniTotem);
+                appState.helixNodes.push({ mesh: miniTotem, index: i });
+                
+                // HTML Label
+                const label = document.createElement('div');
+                label.className = 'html-label';
+                label.textContent = `${type.toUpperCase()}_V${i+1}`;
+                label.onclick = () => {
+                    document.getElementById('ep-title').textContent = `${type} Vault ${i+1}`;
+                    document.getElementById('episode-preview').classList.add('show');
+                };
+                labelsContainer.appendChild(label);
+                appState.helixLabels.push({ el: label, pos3D: miniTotem.position.clone() });
+            }
+        }
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function handleInteract(x, y) {
+            mouse.x = (x / window.innerWidth) * 2 - 1;
+            mouse.y = -(y / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(preyNodes);
+            
+            if(intersects.length > 0) {
+                const mesh = intersects[0].object;
+                appState.selectedNode = mesh;
+                
+                // Update Target Color
+                appState.targetColor.setHex(mesh.userData.color);
+                
+                // Move Spider
+                mesh.getWorldPosition(appState.spiderTarget);
+                // Offset spider so it sits 'on' the prey
+                appState.spiderTarget.z += 10;
+                
+                // Spawn Helix
+                spawnHelix(mesh);
+                
+                // UI Updates
+                document.getElementById('ui-sector-name').textContent = `SECTOR: ${mesh.userData.type.toUpperCase()}`;
+                if(appState.cameraMode === 'overview') appState.cameraMode = 'cinematic';
+                
+                // Make cam mode buttons reflect state
+                document.querySelectorAll('.cam-mode-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.mode === appState.cameraMode);
+                });
+            }
+        }
+
+        window.addEventListener('click', (e) => {
+            if(e.target.closest('.ui-layer') || e.target.closest('.html-label') || e.target.closest('#episode-preview')) return;
+            handleInteract(e.clientX, e.clientY);
+        });
+        container.addEventListener('touchstart', (e) => {
+            if(e.touches.length === 1 && !e.target.closest('.ui-layer') && !e.target.closest('.html-label')) {
+                handleInteract(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, {passive: true});
+
+        const clock = new THREE.Clock();
+        let camAngle = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            appState.time += delta;
+
+            // 1. Color Interpolation (Global Sync)
+            appState.baseColor.lerp(appState.targetColor, 0.05);
+            globalWireMat.color.copy(appState.baseColor);
+            globalSolidMat.color.copy(appState.baseColor);
+            globalSolidMat.emissive.copy(appState.baseColor).multiplyScalar(0.3);
+            globalLineMat.color.copy(appState.baseColor);
+            centerLight.color.copy(appState.baseColor);
+            spiderBodyMat.emissive.copy(appState.baseColor).multiplyScalar(0.7);
+            
+            // Sync CSS variables occasionally to save DOM updates
+            if (Math.random() > 0.9) updateThemeCSS();
+
+            // 2. Spider Movement
+            spiderGroup.position.lerp(appState.spiderTarget, 0.04);
+            // Orient spider towards target visually
+            if (spiderGroup.position.distanceTo(appState.spiderTarget) > 5) {
+               spiderGroup.lookAt(appState.spiderTarget);
+            }
+            // Leg wiggle animation based on movement
+            const speed = spiderGroup.position.distanceTo(appState.spiderTarget) > 1 ? 15 : 2;
+            legsGroup.children.forEach((leg, i) => {
+                leg.position.y = Math.sin(appState.time * speed + i) * 1.5;
+            });
+
+            // 3. Web & Totem idle animations
+            if (appState.cameraMode !== 'free') {
+                webGroup.rotation.z += 0.001; // Slow constant rotation
+            } else {
+                // Joystick rotates web in free mode
+                webGroup.rotation.y += appState.joystick.x * 0.05;
+                webGroup.rotation.x += appState.joystick.y * 0.05;
+            }
+
+            appState.totems.forEach(totem => {
+                totem.rotation.x = Math.sin(appState.time * 2 + totem.position.x) * 0.2;
+                totem.rotation.y = Math.cos(appState.time * 2 + totem.position.y) * 0.2;
+            });
+
+            // 4. Helix Animation & HTML Label Sync
+            if (appState.helixActive) {
+                helixGroup.rotation.z += 0.005;
+                
+                // Update 2D positions of HTML labels
+                appState.helixLabels.forEach(item => {
+                    const vector = item.pos3D.clone();
+                    // Convert local helix pos to world pos
+                    vector.applyMatrix4(helixGroup.matrixWorld);
+                    vector.project(camera);
+                    
+                    const x = (vector.x * .5 + .5) * window.innerWidth;
+                    const y = (vector.y * -.5 + .5) * window.innerHeight;
+                    
+                    // Hide if behind camera
+                    if (vector.z > 1) {
+                        item.el.classList.remove('visible');
+                    } else {
+                        item.el.style.left = `${x}px`;
+                        item.el.style.top = `${y}px`;
+                        item.el.classList.add('visible');
+                    }
+                });
+            }
+
+            // 5. Camera Rig
+            let targetCamPos = new THREE.Vector3();
+            let targetLookAt = new THREE.Vector3();
+            const baseDist = 300 / appState.zoom;
+
+            switch(appState.cameraMode) {
+                case 'overview':
+                    targetCamPos.set(0, -baseDist, baseDist * 1.5);
+                    targetLookAt.set(0,0,0);
+                    break;
+                case 'cinematic':
+                    // Orbit around spider or selected node
+                    camAngle += delta * 0.2;
+                    const center = appState.selectedNode ? appState.selectedNode.getWorldPosition(new THREE.Vector3()) : spiderGroup.position;
+                    targetCamPos.set(
+                        center.x + Math.cos(camAngle) * (150/appState.zoom),
+                        center.y + Math.sin(camAngle) * (150/appState.zoom),
+                        center.z + 50
+                    );
+                    targetLookAt.copy(center);
+                    break;
+                case 'follow':
+                    // Close up on spider, looking ahead
+                    const offset = new THREE.Vector3(0, -100/appState.zoom, 50/appState.zoom);
+                    offset.applyQuaternion(spiderGroup.quaternion);
+                    targetCamPos.copy(spiderGroup.position).add(offset);
+                    targetLookAt.copy(spiderGroup.position).add(new THREE.Vector3(0,0, -20));
+                    break;
+                case 'free':
+                    // Just zoom control, keeps current orientation mostly but allows joystick rotation
+                    targetCamPos.copy(camera.position);
+                    targetCamPos.setLength(baseDist);
+                    targetLookAt.set(0,0,0);
+                    break;
+            }
+
+            if(appState.cameraMode !== 'free') {
+                camera.position.lerp(targetCamPos, 0.05);
+                camera.lookAt(targetLookAt);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Init
+        updateThemeCSS();
+        animate();
+    </script>
+</body>
+</html>
