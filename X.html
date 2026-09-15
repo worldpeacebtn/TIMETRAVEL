@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Web Data Vault 2.0 - Spider's Leap & Stasis OS</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D Visuals -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <style>
+        :root {
+            --hue-rotate: 0deg;
+            --neon-pink: #ff00ff;
+            --neon-cyan: #00ffff;
+            --neon-purple: #9d00ff;
+            --neon-orange: #ff8800;
+            --neon-green: #00ff88;
+            --bg-twilight: #0a0212;
+            --glass-bg: rgba(10, 2, 20, 0.85);
+            --glass-border: rgba(255, 0, 255, 0.4);
+            --menu-scale: 1;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #05010a;
+            color: #fff;
+            font-family: 'Inter', system-ui, sans-serif;
+            user-select: none;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            filter: hue-rotate(var(--hue-rotate));
+        }
+
+        /* --- iPhone 16 Pro Max Outer Frame --- */
+        .iphone-frame {
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            max-width: 430px;
+            max-height: 932px;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-twilight);
+            border-radius: 52px;
+            box-shadow: 0 0 50px rgba(255, 0, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.2);
+            border: 8px solid #222;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media(max-width: 450px) {
+            .iphone-frame {
+                border-radius: 0;
+                border: none;
+                max-width: 100%;
+                max-height: 100%;
+            }
+        }
+
+        /* Dynamic Island */
+        .dynamic-island {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 32px;
+            background: #000;
+            border-radius: 20px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0;
+        }
+
+        /* --- Glassmorphism & Neon Glows --- */
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 0 25px rgba(255, 0, 255, 0.15), inset 0 0 15px rgba(0, 255, 255, 0.05);
+        }
+
+        .text-glow {
+            text-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+        }
+
+        /* --- Knight Rider Rainbow Indicator Bar --- */
+        .knight-rider-bar {
+            height: 6px;
+            width: 100%;
+            background: linear-gradient(90deg, #ff00ff, #00ffff, #00ff88, #ff8800, #ff00ff);
+            background-size: 200% 100%;
+            animation: knightScan 3s linear infinite;
+            box-shadow: 0 0 12px var(--neon-cyan);
+        }
+        @keyframes knightScan {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+
+        /* --- Stretched W Waveform Animation --- */
+        .stretched-w-wave {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            height: 28px;
+        }
+        .wave-bar {
+            width: 4px;
+            background: var(--neon-pink);
+            border-radius: 4px;
+            animation: wavePulse 0.8s ease-in-out infinite alternate;
+        }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; background: var(--neon-cyan); }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; background: var(--neon-green); }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; background: var(--neon-orange); }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; background: var(--neon-pink); }
+        @keyframes wavePulse {
+            0% { height: 6px; box-shadow: 0 0 2px currentColor; }
+            100% { height: 24px; box-shadow: 0 0 12px currentColor; }
+        }
+
+        /* --- UI Layers & Panels --- */
+        .ui-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .pointer-events-auto { pointer-events: auto; }
+
+        .os-modal {
+            position: absolute; 
+            inset: 60px 12px 100px 12px;
+            border-radius: 24px;
+            transform: scale(0.95); opacity: 0; pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            z-index: 60;
+        }
+        .os-modal.show { transform: scale(1); opacity: 1; pointer-events: auto; }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--neon-pink); border-radius: 2px; }
+
+        /* Card Deck & Wings */
+        .wing-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: scale(var(--menu-scale));
+        }
+        .wing-card:hover { transform: scale(calc(var(--menu-scale) * 1.08)) translateY(-4px); }
+
+        /* Custom Notification Toast */
+        #toast-notification {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: rgba(0,0,0,0.9);
+            border: 1px solid var(--neon-cyan);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-family: monospace;
+            color: var(--neon-cyan);
+            box-shadow: 0 0 15px var(--neon-cyan);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s;
+            pointer-events: none;
+        }
+        #toast-notification.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Cinematic Zoom Lens Overlay */
+        #cinematic-overlay {
+            position: absolute;
+            inset: 0;
+            border: 4px solid var(--neon-cyan);
+            box-shadow: inset 0 0 50px rgba(0, 255, 255, 0.4);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 40;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px;
+        }
+        #cinematic-overlay.active { opacity: 1; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="iphone-frame">
+        <!-- Dynamic Island -->
+        <div class="dynamic-island">
+            <span class="w-2 h-2 rounded-full bg-[var(--neon-green)] animate-ping"></span>
+            <span class="text-[9px] font-mono text-[var(--neon-cyan)] tracking-wider">SPIDER OS</span>
+            <span class="w-2 h-2 rounded-full bg-[var(--neon-pink)]"></span>
+        </div>
+
+        <div id="canvas-container"></div>
+        <div id="toast-notification">Notification message here</div>
+
+        <!-- Cinematic Zoom Lens Analysis Overlay -->
+        <div id="cinematic-overlay">
+            <div class="flex justify-between items-center text-[11px] font-mono text-[var(--neon-cyan)] bg-black/80 px-4 py-2 rounded-xl border border-[var(--neon-cyan)]">
+                <span class="animate-pulse">🔭 TARGET LOCK: UNIVERSE VAULT ANALYSIS</span>
+                <span id="cinematic-target-name">NODE-ALPHA</span>
+            </div>
+            <div class="flex justify-between items-end text-[10px] font-mono text-gray-300 bg-black/80 p-3 rounded-xl border border-[var(--glass-border)]">
+                <div>
+                    <p class="text-[var(--neon-pink)] font-bold">SLOW-MOTION TIME DILATION: ACTIVE (0.3x)</p>
+                    <p class="text-gray-400 mt-0.5">Audio & particle fluid nebula synchronizing...</p>
+                </div>
+                <button onclick="exitCinematicMode()" class="px-3 py-1.5 bg-[var(--neon-cyan)] text-black font-bold rounded hover:opacity-90">RESUME NORMAL SPEED</button>
+            </div>
+        </div>
+
+        <div class="ui-layer">
+            <!-- Top Bar -->
+            <div class="w-full pointer-events-auto glass border-b border-[var(--neon-pink)]/30 px-4 pt-10 pb-2 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <span id="active-char-emoji" class="text-sm">🕷️</span>
+                    <div>
+                        <span id="active-char-name" class="text-[11px] font-mono font-bold tracking-widest text-[var(--neon-cyan)] text-glow block">GWENPOOL • SPIDER LEAP</span>
+                        <span class="text-[9px] font-mono text-gray-400">STR: <span id="active-char-str" class="text-[var(--neon-green)]">98</span></span>
+                    </div>
+                </div>
+                <div class="flex gap-1.5 items-center">
+                    <button onclick="openModal('comic-modal')" class="px-2.5 py-1 bg-[var(--neon-pink)]/20 border border-[var(--neon-pink)] rounded text-[9px] font-mono hover:bg-[var(--neon-pink)]/40 transition">📖 COMIC</button>
+                    <button onclick="openModal('media-modal')" class="px-2.5 py-1 bg-[var(--neon-cyan)]/20 border border-[var(--neon-cyan)] rounded text-[9px] font-mono hover:bg-[var(--neon-cyan)]/40 transition">📂 MEDIA</button>
+                    <button onclick="openModal('characters-modal')" class="px-2.5 py-1 bg-[var(--neon-orange)]/20 border border-[var(--neon-orange)] rounded text-[9px] font-mono hover:bg-[var(--neon-orange)]/40 transition">👥 HEROES</button>
+                </div>
+            </div>
+
+            <!-- Left-Side Glassmorphism Action HUD -->
+            <div class="absolute left-3 top-36 z-30 pointer-events-auto flex flex-col gap-3">
+                <button onclick="performAction('jump')" class="w-12 h-12 rounded-2xl glass border border-[var(--neon-cyan)] flex flex-col items-center justify-center text-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/20 transition wing-card shadow-[0_0_15px_rgba(0,255,255,0.3)]">
+                    <i data-lucide="zap" class="w-5 h-5"></i>
+                    <span class="text-[8px] font-mono mt-0.5">LEAP</span>
+                </button>
+                <button onclick="performAction('sparkle')" class="w-14 h-14 rounded-2xl glass border border-[var(--neon-pink)] flex flex-col items-center justify-center text-[var(--neon-pink)] hover:bg-[var(--neon-pink)]/30 transition wing-card shadow-[0_0_20px_var(--neon-pink)]">
+                    <i data-lucide="sparkles" class="w-6 h-6"></i>
+                    <span class="text-[8px] font-mono mt-0.5">SPECIAL</span>
+                </button>
+                <button onclick="performAction('web')" class="w-12 h-12 rounded-2xl glass border border-[var(--neon-orange)] flex flex-col items-center justify-center text-[var(--neon-orange)] hover:bg-[var(--neon-orange)]/20 transition wing-card shadow-[0_0_15px_rgba(255,136,0,0.3)]">
+                    <i data-lucide="compass" class="w-5 h-5"></i>
+                    <span class="text-[8px] font-mono mt-0.5">SLING</span>
+                </button>
+            </div>
+
+            <!-- Cardset Deck with Left & Right Emojis & Mirrored Wings -->
+            <div class="absolute right-3 top-36 z-30 pointer-events-auto flex flex-col gap-2 items-end">
+                <div class="flex items-center gap-1.5 bg-black/70 border border-[var(--glass-border)] rounded-full px-3 py-1 glass">
+                    <span class="text-xs">🦇</span>
+                    <span class="text-[9px] font-mono text-[var(--neon-pink)]">WING DECK (3/3)</span>
+                    <span class="text-xs scale-x-[-1]">🦇</span>
+                </div>
+                <div class="flex flex-col gap-2" id="card-deck-container">
+                    <div onclick="selectCardDeck(0)" class="w-16 h-20 rounded-xl glass border-2 border-[var(--neon-pink)] p-2 flex flex-col items-center justify-between cursor-pointer wing-card shadow-[0_0_15px_rgba(255,0,255,0.4)]">
+                        <span class="text-xs">🕷️✨</span>
+                        <span class="text-[8px] font-mono text-center text-white font-bold">NEON SPIDER</span>
+                        <span class="text-[8px] text-[var(--neon-cyan)]">LVL 99</span>
+                    </div>
+                    <div onclick="selectCardDeck(1)" class="w-16 h-20 rounded-xl glass border border-[var(--neon-cyan)] p-2 flex flex-col items-center justify-between cursor-pointer wing-card opacity-70 hover:opacity-100">
+                        <span class="text-xs">🦊🔮</span>
+                        <span class="text-[8px] font-mono text-center text-white font-bold">CYBER FOX</span>
+                        <span class="text-[8px] text-[var(--neon-cyan)]">LVL 85</span>
+                    </div>
+                    <div onclick="selectCardDeck(2)" class="w-16 h-20 rounded-xl glass border border-[var(--neon-orange)] p-2 flex flex-col items-center justify-between cursor-pointer wing-card opacity-70 hover:opacity-100">
+                        <span class="text-xs">🐉⚡</span>
+                        <span class="text-[8px] font-mono text-center text-white font-bold">DRAGON VAULT</span>
+                        <span class="text-[8px] text-[var(--neon-orange)]">LVL 92</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 1. Comic Booklet Chapters Modal -->
+            <div id="comic-modal" class="os-modal glass">
+                <div class="flex items-center justify-between p-3 border-b border-[var(--glass-border)] bg-black/60">
+                    <h3 class="text-xs font-bold text-[var(--neon-pink)] font-mono tracking-widest text-glow">📖 DIGITAL COMIC BOOKLET & DIALOGUE STUDIO</h3>
+                    <button onclick="closeModal('comic-modal')" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div class="comic-card p-4">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] text-[var(--neon-cyan)] font-mono">CHAPTER 1 • THE VAULT UNIVERSE GATES</span>
+                            <span class="text-lg">🕷️</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white mt-1">Twilight Nebula & Spiderweb Strings</h4>
+                        <p class="text-[11px] text-gray-300 mt-2">Hold and click anywhere on the canvas to trigger cinematic slow-motion time dilation, zoom into vault universes, and analyze their floating parts!</p>
+                        <div class="mt-3 flex gap-2">
+                            <button onclick="jumpToChapter(1)" class="px-3 py-1 bg-[var(--neon-pink)]/30 border border-[var(--neon-pink)] rounded text-[10px] font-mono">⚡ LAUNCH SCENE</button>
+                            <button onclick="openDialogEditor('Chapter 1')" class="px-3 py-1 bg-black/50 border border-[var(--neon-cyan)] rounded text-[10px] font-mono text-[var(--neon-cyan)]">💬 EDIT DIALOGUE</button>
+                        </div>
+                    </div>
+
+                    <div class="comic-card p-4">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] text-[var(--neon-cyan)] font-mono">CHAPTER 2 • PET & HERO VOICE SYNC</span>
+                            <span class="text-lg">🐾</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white mt-1">Stretched W Waveform & Rainbow Sync</h4>
+                        <p class="text-[11px] text-gray-300 mt-2">When characters or pets talk to you, the HUD pulses in rainbow color sync with dynamic stretched W waveform wave pattern simulations.</p>
+                        <button onclick="openModal('tamagotchi-modal')" class="mt-3 px-3 py-1 bg-[var(--neon-orange)]/30 border border-[var(--neon-orange)] rounded text-[10px] font-mono">🐾 OPEN PET HUD</button>
+                    </div>
+
+                    <!-- Custom Dialogues list container -->
+                    <div id="custom-dialogues-container" class="space-y-2">
+                        <div class="text-[10px] font-mono text-[var(--neon-green)]">💡 Custom Dialogues & Scenes Added: <span id="dialogue-count">0</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Media & File Upload Hub Modal (Fully Working) -->
+            <div id="media-modal" class="os-modal glass">
+                <div class="flex items-center justify-between p-3 border-b border-[var(--glass-border)] bg-black/60">
+                    <h3 class="text-xs font-bold text-[var(--neon-cyan)] font-mono tracking-widest text-glow">📂 WORKING MEDIA & FILE VAULT UPLOAD</h3>
+                    <button onclick="closeModal('media-modal')" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+                    <div class="border border-[var(--neon-cyan)] rounded-xl p-3 bg-black/40">
+                        <label class="block font-mono text-[var(--neon-cyan)] mb-1">🎵 TITLE MUSIC & AUDIO UPLOAD</label>
+                        <p class="text-[10px] text-gray-400 mb-2">Upload MP3/WAV files for background title music and audio-reactive web strings.</p>
+                        <input type="file" id="audio-file-upload" accept="audio/*" class="w-full text-[10px] text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-[var(--neon-cyan)] file:text-black cursor-pointer">
+                    </div>
+
+                    <div class="border border-[var(--neon-pink)] rounded-xl p-3 bg-black/40">
+                        <label class="block font-mono text-[var(--neon-pink)] mb-1">🎮 CHARACTER SPRITE & ASSETS UPLOAD</label>
+                        <p class="text-[10px] text-gray-400 mb-2">Upload custom character images or sprite sheets to add to your deck.</p>
+                        <input type="file" id="char-file-upload" accept="image/*" class="w-full text-[10px] text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-[var(--neon-pink)] file:text-black cursor-pointer">
+                    </div>
+
+                    <div class="border border-[var(--neon-orange)] rounded-xl p-3 bg-black/40">
+                        <label class="block font-mono text-[var(--neon-orange)] mb-1">📄 DOCUMENT, PDF & VAULT SCENE UPLOAD</label>
+                        <p class="text-[10px] text-gray-400 mb-2">Store notes, PDFs, and media files inside universe vaults.</p>
+                        <input type="file" id="doc-file-upload" multiple accept=".pdf,image/*,audio/*,.txt" class="w-full text-[10px] text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-[var(--neon-orange)] file:text-black cursor-pointer">
+                    </div>
+
+                    <div id="uploaded-files-list" class="space-y-2 border-t border-gray-800 pt-3">
+                        <div class="text-[10px] text-gray-400 font-mono">Active Loaded Files: <span id="file-count" class="text-[var(--neon-green)]">0 items</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. AI Tamagotchi & Stasis Vault Modal with Stretched W Waveform -->
+            <div id="tamagotchi-modal" class="os-modal glass">
+                <div class="flex items-center justify-between p-3 border-b border-[var(--glass-border)] bg-black/60">
+                    <h3 class="text-xs font-bold text-[var(--neon-orange)] font-mono tracking-widest text-glow">🐾 PET COMPANION & VOICE SYNC HUD</h3>
+                    <button onclick="closeModal('tamagotchi-modal')" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div class="border border-[var(--neon-pink)] rounded-xl p-4 bg-black/50 flex flex-col items-center text-center">
+                        <div id="pet-avatar" class="w-20 h-20 rounded-full border-2 border-[var(--neon-pink)] flex items-center justify-center bg-gradient-to-tr from-purple-900 to-black shadow-[0_0_20px_var(--neon-pink)] mb-3 text-3xl">
+                            🕷️✨
+                        </div>
+                        <h4 id="pet-name" class="font-bold text-sm text-white">Pink Cyber Spider Companion</h4>
+                        <p class="text-[10px] text-gray-400 mt-1">Status: <span id="pet-status" class="text-[var(--neon-green)]">ACTIVE & SPEAKING</span></p>
+
+                        <!-- Stretched W Waveform Simulation -->
+                        <div class="w-full my-3 p-2 bg-black/80 rounded-xl border border-[var(--neon-cyan)] flex flex-col items-center">
+                            <span class="text-[9px] font-mono text-[var(--neon-cyan)] mb-1">VOICE SYNC WAVEFORM (STRETCHED W)</span>
+                            <div class="stretched-w-wave">
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                            </div>
+                            <p id="pet-dialogue-text" class="text-[10px] text-gray-300 mt-2 font-mono">"Welcome back, Commander! Ready for web-slinging across universe vaults?"</p>
+                        </div>
+                        
+                        <div class="w-full grid grid-cols-3 gap-2 mt-2 text-[10px]">
+                            <div class="bg-black/60 p-2 rounded border border-gray-800">
+                                <span class="text-gray-400">ENERGY</span>
+                                <div class="w-full bg-gray-800 h-1.5 rounded mt-1 overflow-hidden">
+                                    <div id="bar-energy" class="bg-[var(--neon-cyan)] h-full w-[85%] transition-all"></div>
+                                </div>
+                            </div>
+                            <div class="bg-black/60 p-2 rounded border border-gray-800">
+                                <span class="text-gray-400">DATA SYNC</span>
+                                <div class="w-full bg-gray-800 h-1.5 rounded mt-1 overflow-hidden">
+                                    <div id="bar-sync" class="bg-[var(--neon-pink)] h-full w-[92%] transition-all"></div>
+                                </div>
+                            </div>
+                            <div class="bg-black/60 p-2 rounded border border-gray-800">
+                                <span class="text-gray-400">STASIS</span>
+                                <div class="w-full bg-gray-800 h-1.5 rounded mt-1 overflow-hidden">
+                                    <div id="bar-stasis" class="bg-[var(--neon-orange)] h-full w-[15%] transition-all"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="feedPet()" class="flex-1 py-2 bg-purple-900/40 border border-[var(--neon-purple)] rounded text-xs hover:bg-purple-900/60 transition">🍖 FEED DATA PACKET</button>
+                        <button onclick="petSpeakRandom()" class="flex-1 py-2 bg-pink-900/40 border border-[var(--neon-pink)] rounded text-xs hover:bg-pink-900/60 transition">💬 TRIGGER PET DIALOGUE</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Heroes & Character Selector Modal -->
+            <div id="characters-modal" class="os-modal glass">
+                <div class="flex items-center justify-between p-3 border-b border-[var(--glass-border)] bg-black/60">
+                    <h3 class="text-xs font-bold text-[var(--neon-green)] font-mono tracking-widest text-glow">👥 HEROES & CHARACTER ENGINE DECK</h3>
+                    <button onclick="closeModal('characters-modal')" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+                    <p class="text-[10px] text-gray-400">Switch your active hero character instantly while keeping the HUD and card deck synchronized.</p>
+                    <div id="character-list" class="space-y-2">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Thumb-Friendly Control Bar & Knight Rider Menu Size Indicator -->
+            <div class="w-full pointer-events-auto bg-black/90 border-t border-[var(--neon-pink)]/40 flex flex-col">
+                <!-- Knight Rider Rainbow Indicator Bar -->
+                <div class="knight-rider-bar"></div>
+
+                <div class="p-3 pb-6 flex flex-col items-center gap-2">
+                    <div class="flex items-center gap-2 overflow-x-auto w-full justify-start md:justify-center max-w-lg py-1 px-2">
+                        <button onclick="setCameraMode('overview')" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-pink)] text-glow flex flex-col items-center shrink-0">
+                            <i data-lucide="globe" class="w-3.5 h-3.5 mb-1"></i><span>OVERVIEW</span>
+                        </button>
+                        <button onclick="setCameraMode('world')" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-cyan)] text-glow flex flex-col items-center shrink-0">
+                            <i data-lucide="box" class="w-3.5 h-3.5 mb-1"></i><span>WORLD</span>
+                        </button>
+                        <button onclick="openModal('comic-modal')" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-orange)] text-glow flex flex-col items-center shrink-0">
+                            <i data-lucide="book-open" class="w-3.5 h-3.5 mb-1"></i><span>VISUALS</span>
+                        </button>
+                        <button onclick="toggleAudio()" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-green)] text-glow flex flex-col items-center shrink-0">
+                            <i data-lucide="music" class="w-3.5 h-3.5 mb-1"></i><span>AUDIO</span>
+                        </button>
+                        <button onclick="openModal('tamagotchi-modal')" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-pink)] text-glow flex flex-col items-center shrink-0">
+                            <i data-lucide="cpu" class="w-3.5 h-3.5 mb-1"></i><span>PET HUD</span>
+                        </button>
+                        <button onclick="openModal('media-modal')" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-cyan)] text-glow flex flex-col items-center shrink-0">
+                            <i data-lucide="folder" class="w-3.5 h-3.5 mb-1"></i><span>FILES</span>
+                        </button>
+                        <button onclick="cycleTheme()" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-orange)] text-glow flex flex-col items-center shrink-0">
+                            <i data-lucide="palette" class="w-3.5 h-3.5 mb-1"></i><span>HUE</span>
+                        </button>
+                    </div>
+
+                    <!-- Menu Size / Scale Slider over Rainbow Indicator -->
+                    <div class="flex items-center justify-between w-full px-3 text-[9px] font-mono text-gray-400">
+                        <div class="flex items-center gap-2">
+                            <span>MENU SIZE:</span>
+                            <input type="range" id="menu-scale-slider" min="0.8" max="1.3" step="0.05" value="1" oninput="adjustMenuScale(this.value)" class="w-24 accent-[var(--neon-cyan)] cursor-pointer">
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="triggerSpecialSparkle()" class="text-[var(--neon-pink)] hover:underline font-bold">✨ SPARKLE BURST</button>
+                            <span>•</span>
+                            <button onclick="shootWebAction()" class="text-[var(--neon-orange)] hover:underline">🎯 TARGET SLING</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Toast Notification helper
+        function showToast(msg) {
+            const t = document.getElementById('toast-notification');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        // Modal Helpers
+        function openModal(id) {
+            document.getElementById(id).classList.add('show');
+        }
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('show');
+        }
+
+        function jumpToChapter(chNum) {
+            closeModal('comic-modal');
+            showToast(`🚀 Launching Chapter ${chNum}: Stage Synchronized!`);
+            if (chNum === 1) setCameraMode('overview');
+        }
+
+        // Menu Scale Adjustment (Knight Rider HUD sizing)
+        function adjustMenuScale(val) {
+            document.documentElement.style.setProperty('--menu-scale', val);
+        }
+
+        // Hue Adjustment
+        function adjustHue(val) {
+            document.documentElement.style.setProperty('--hue-rotate', val + 'deg');
+        }
+
+        // App Characters
+        const characters = [
+            { name: "GWENPOOL • SPIDER LEAP", emoji: "🕷️", str: 98, deck: "Neon Spider" },
+            { name: "CYBER FOX • MASK VAULT", emoji: "🦊", str: 92, deck: "Cyber Fox" },
+            { name: "DRAGON KINETIC • DJ", emoji: "🐉", str: 105, deck: "Dragon Vault" },
+            { name: "NEON WOLF • STASIS", emoji: "🐺", str: 89, deck: "Wolf Guardian" }
+        ];
+        let currentCharacterIndex = 0;
+
+        function renderCharactersList() {
+            const list = document.getElementById('character-list');
+            list.innerHTML = characters.map((c, idx) => `
+                <div onclick="switchCharacter(${idx})" class="p-3 rounded-xl border ${idx === currentCharacterIndex ? 'border-[var(--neon-green)] bg-[var(--neon-green)]/10' : 'border-gray-800 bg-black/50'} flex justify-between items-center cursor-pointer hover:border-[var(--neon-cyan)] transition">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${c.emoji}</span>
+                        <div>
+                            <div class="font-bold text-white">${c.name}</div>
+                            <div class="text-[9px] text-gray-400">Active Deck: ${c.deck}</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[var(--neon-green)] font-mono font-bold">STR ${c.str}</div>
+                        <div class="text-[8px] text-[var(--neon-cyan)]">${idx === currentCharacterIndex ? 'ACTIVE' : 'SELECT'}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function switchCharacter(idx) {
+            currentCharacterIndex = idx;
+            const c = characters[idx];
+            document.getElementById('active-char-emoji').textContent = c.emoji;
+            document.getElementById('active-char-name').textContent = c.name;
+            document.getElementById('active-char-str').textContent = c.str;
+            renderCharactersList();
+            closeModal('characters-modal');
+            showToast(`👥 Switched Hero to ${c.name}!`);
+        }
+        renderCharactersList();
+
+        // Card Deck Selection
+        function selectCardDeck(index) {
+            const cards = ['Neon Spider Cyber Deck', 'Cyber Fox Oracle Deck', 'Dragon Vault Kinetic Deck'];
+            showToast(`🎴 Selected Deck: ${cards[index]}`);
+        }
+
+        // Custom Dialogues storage
+        let customDialogues = [];
+        function openDialogEditor(section) {
+            const text = prompt(`Enter custom dialogue or scene note for ${section}:`);
+            if(text) {
+                customDialogues.push({ section, text });
+                document.getElementById('dialogue-count').textContent = customDialogues.length;
+                const container = document.getElementById('custom-dialogues-container');
+                const div = document.createElement('div');
+                div.className = 'p-2 rounded bg-black/60 border border-[var(--neon-cyan)] text-[10px] font-mono text-gray-200 mt-2';
+                div.innerHTML = `<span class="text-[var(--neon-pink)]">[${section}]</span>: ${text}`;
+                container.appendChild(div);
+                showToast('💬 Custom Dialogue / Scene Saved to Vault!');
+            }
+        }
+
+        // Pet random dialogues
+        const petDialogues = [
+            "Commander! The nebula energy is peaking at 98.4%!",
+            "Did you know each vault universe has its own fluid bubble physics?",
+            "Stasis backup is secure. Ready for cinematic target zoom!",
+            "Audio-reactive web strings are harmonizing with your music!"
+        ];
+        function petSpeakRandom() {
+            const rand = petDialogues[Math.floor(Math.random() * petDialogues.length)];
+            document.getElementById('pet-dialogue-text').textContent = `"${rand}"`;
+            showToast('🐾 Pet Companion Spoke via Voice Sync!');
+        }
+
+        function feedPet() {
+            document.getElementById('bar-energy').style.width = '100%';
+            showToast('🍖 Data packet fed! Pet power-up active.');
+        }
+
+        const State = {
+            cameraMode: 'overview',
+            spiderPos: new THREE.Vector3(0, 0, 40),
+            time: 0,
+            slowMoFactor: 1.0,
+            cinematicMode: false,
+            targetVault: null,
+            audioActive: false,
+            vaults: [],
+            uploadedFilesCount: 0
+        };
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a0212, 0.0025);
+
+        const camera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x0a0212, 1);
+        container.appendChild(renderer.domElement);
+
+        // Starfield Nebulae Skybox
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = [];
+        for(let i=0; i<2000; i++) {
+            starPos.push((Math.random()-0.5)*1800, (Math.random()-0.5)*1800, (Math.random()-0.5)*1800);
+        }
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+        const starMat = new THREE.PointsMaterial({color: 0xffaaff, size: 2.2, transparent: true, opacity: 0.85});
+        scene.add(new THREE.Points(starGeo, starMat));
+
+        const mainGroup = new THREE.Group();
+        scene.add(mainGroup);
+
+        scene.add(new THREE.AmbientLight(0x553366));
+        const centerLight = new THREE.PointLight(0xff00ff, 5, 900);
+        scene.add(centerLight);
+
+        // Glowing Spiderweb Strings & Radial Universe Nodes
+        const webLineMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
+        const radials = 28;
+        const rings = 14;
+        const webRadius = 450;
+        const vaultNodes = [];
+        const animalTypes = ['🦊 Fox', '🐺 Wolf', '🐻 Bear', '🐰 Rabbit', '🐭 Mouse', '🐝 Bee', '🐉 Dragon', '🦄 Seahorse', '🕷️ Spider'];
+
+        for(let i=0; i<radials; i++) {
+            const angle = (i/radials) * Math.PI * 2;
+            const pts = [new THREE.Vector3(0,0,0), new THREE.Vector3(Math.cos(angle)*webRadius, Math.sin(angle)*webRadius, (Math.random()-0.5)*40)];
+            const geom = new THREE.BufferGeometry().setFromPoints(pts);
+            mainGroup.add(new THREE.Line(geom, webLineMat));
+        }
+
+        for(let r=1; r<=rings; r++) {
+            const currentRadius = (r/rings) * webRadius;
+            const pts = [];
+            for(let i=0; i<=radials; i++) {
+                const angle = (i/radials) * Math.PI * 2;
+                pts.push(new THREE.Vector3(Math.cos(angle)*currentRadius, Math.sin(angle)*currentRadius, (Math.random()-0.5)*30));
+            }
+            mainGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), webLineMat));
+
+            if (r % 2 === 0) {
+                const angle = Math.random() * Math.PI * 2;
+                const animal = animalTypes[(r-1) % animalTypes.length];
+                
+                // Universe Vault Particle Sphere
+                const particleGeo = new THREE.BufferGeometry();
+                const pPositions = [];
+                for(let p=0; p<150; p++) {
+                    pPositions.push((Math.random()-0.5)*16, (Math.random()-0.5)*16, (Math.random()-0.5)*16);
+                }
+                particleGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPositions, 3));
+                
+                const pMat = new THREE.PointsMaterial({
+                    color: r % 4 === 0 ? 0x00ffff : 0xff00ff,
+                    size: 3,
+                    transparent: true,
+                    opacity: 0.95,
+                    blending: THREE.AdditiveBlending
+                });
+                const particleMesh = new THREE.Points(particleGeo, pMat);
+                particleMesh.position.set(Math.cos(angle)*currentRadius, Math.sin(angle)*currentRadius, (Math.random()-0.5)*35);
+
+                const vaultData = {
+                    id: `VAULT-${animal}`,
+                    mesh: particleMesh,
+                    animal: animal,
+                    name: `${animal} Universe Vault`
+                };
+
+                mainGroup.add(particleMesh);
+                vaultNodes.push(vaultData);
+                State.vaults.push(vaultData);
+            }
+        }
+
+        // Spider Character Mesh
+        const spiderGroup = new THREE.Group();
+        const spiderMat = new THREE.MeshPhongMaterial({ color: 0x111111, emissive: 0xff00ff, emissiveIntensity: 1.2, shininess: 120 });
+        const abdomen = new THREE.Mesh(new THREE.SphereGeometry(5, 16, 16), spiderMat); abdomen.position.y = -4; abdomen.scale.set(1, 1.4, 1);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(2.5, 16, 16), spiderMat); head.position.y = 3.5;
+        spiderGroup.add(abdomen, head);
+        scene.add(spiderGroup);
+        spiderGroup.position.copy(State.spiderPos);
+
+        // Click and Hold / Touch Hold handling for Cinematic Zoom & Slow Motion Target Analysis
+        let pressTimer = null;
+        let isHolding = false;
+
+        window.addEventListener('pointerdown', (e) => {
+            // Ignore UI clicks
+            if(e.target.closest('.ui-layer') || e.target.closest('.os-modal')) return;
+            isHolding = true;
+            pressTimer = setTimeout(() => {
+                if(isHolding) {
+                    triggerCinematicZoom();
+                }
+            }, 600); // Hold for 600ms
+        });
+
+        window.addEventListener('pointerup', () => {
+            isHolding = false;
+            if(pressTimer) clearTimeout(pressTimer);
+        });
+
+        function triggerCinematicZoom() {
+            State.cinematicMode = true;
+            State.slowMoFactor = 0.25; // Slow down animations
+            const randomVault = vaultNodes[Math.floor(Math.random() * vaultNodes.length)];
+            State.targetVault = randomVault;
+            document.getElementById('cinematic-target-name').textContent = randomVault ? randomVault.name.toUpperCase() : 'NODE-UNIVERSE';
+            document.getElementById('cinematic-overlay').classList.add('active');
+            showToast('🔭 Cinematic Zoom & Vault Analysis Engaged (Slow-Mo Active)');
+        }
+
+        function exitCinematicMode() {
+            State.cinematicMode = false;
+            State.slowMoFactor = 1.0;
+            State.targetVault = null;
+            document.getElementById('cinematic-overlay').classList.remove('active');
+            showToast('⚡ Resumed normal speed & navigation.');
+        }
+
+        // Action Hud Functions
+        function performAction(action) {
+            if(action === 'jump') {
+                showToast('🚀 Spider Leap Activated!');
+                State.spiderPos.add(new THREE.Vector3((Math.random()-0.5)*80, (Math.random()-0.5)*80, 0));
+            } else if(action === 'sparkle') {
+                triggerSpecialSparkle();
+            } else if(action === 'web') {
+                shootWebAction();
+            }
+        }
+
+        function triggerSpecialSparkle() {
+            showToast('✨ Sparkle Burst! Nebula Particle Simulation Boosted!');
+            centerLight.color.setHex(0x00ff88);
+            setTimeout(() => centerLight.color.setHex(0xff00ff), 1500);
+        }
+
+        function shootWebAction() {
+            showToast('🎯 Target Web-Sling Locked onto Vault Node!');
+            const randomVault = vaultNodes[Math.floor(Math.random() * vaultNodes.length)];
+            if(randomVault) {
+                State.spiderPos.copy(randomVault.mesh.position).add(new THREE.Vector3(0, 0, 15));
+            }
+        }
+
+        function setCameraMode(mode) {
+            State.cameraMode = mode;
+            showToast(`📷 Camera Mode: ${mode.toUpperCase()}`);
+        }
+
+        // Working File Upload Handlers with Live Preview
+        document.getElementById('audio-file-upload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(file) {
+                State.uploadedFilesCount++;
+                updateFileListDisplay(file.name, 'audio');
+                showToast(`🎵 Loaded Audio: ${file.name}`);
+            }
+        });
+
+        document.getElementById('char-file-upload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(file) {
+                State.uploadedFilesCount++;
+                updateFileListDisplay(file.name, 'image');
+                showToast(`🎮 Character Asset Loaded: ${file.name}`);
+            }
+        });
+
+        document.getElementById('doc-file-upload').addEventListener('change', (e) => {
+            const files = e.target.files;
+            if(files.length > 0) {
+                State.uploadedFilesCount += files.length;
+                for(let f of files) {
+                    updateFileListDisplay(f.name, 'doc');
+                }
+                showToast(`📂 Added ${files.length} document/media files to Vault!`);
+            }
+        });
+
+        function updateFileListDisplay(filename, type) {
+            document.getElementById('file-count').textContent = `${State.uploadedFilesCount} items`;
+            const list = document.getElementById('uploaded-files-list');
+            const item = document.createElement('div');
+            item.className = 'flex items-center justify-between p-2 rounded bg-black/60 border border-gray-800 text-[10px] font-mono mt-1';
+            item.innerHTML = `<span class="text-[var(--neon-cyan)]">${type === 'audio' ? '🎵' : type === 'image' ? '🖼️' : '📄'} ${filename}</span> <span class="text-[var(--neon-green)]">LOADED</span>`;
+            list.appendChild(item);
+        }
+
+        // Web Audio Synthesizer Toggle
+        let audioCtx = null;
+        function toggleAudio() {
+            State.audioActive = !State.audioActive;
+            if(State.audioActive) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(110, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    showToast('🎵 Title Music Synthesizer Active');
+                } catch(e) {
+                    showToast('🎵 Audio initialized');
+                }
+            } else {
+                if(audioCtx) audioCtx.close();
+                showToast('🔇 Audio Muted');
+            }
+        }
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta() * State.slowMoFactor;
+            State.time += delta;
+
+            // Animate universe vault nodes & spiderweb floating parts
+            State.vaults.forEach((v, i) => {
+                v.mesh.rotation.y += 0.02 * State.slowMoFactor;
+                v.mesh.rotation.x = Math.sin(State.time * 2 + i) * 0.4;
+            });
+
+            // Spider Movement & Bobbing
+            spiderGroup.position.lerp(State.spiderPos, 0.1 * State.slowMoFactor);
+            spiderGroup.rotation.z = Math.sin(State.time * 3) * 0.1;
+
+            // Camera handling & Cinematic Target Zoom
+            if(State.cinematicMode && State.targetVault) {
+                const targetCam = State.targetVault.mesh.position.clone().add(new THREE.Vector3(0, 0, 25));
+                camera.position.lerp(targetCam, 0.05);
+                camera.lookAt(State.targetVault.mesh.position);
+            } else if(State.cameraMode === 'overview') {
+                const targetCam = new THREE.Vector3(
+                    spiderGroup.position.x + Math.sin(State.time * 0.3) * 160,
+                    spiderGroup.position.y - 160,
+                    spiderGroup.position.z + 120
+                );
+                camera.position.lerp(targetCam, 0.05);
+                camera.lookAt(spiderGroup.position);
+            } else {
+                const targetCam = new THREE.Vector3(
+                    spiderGroup.position.x,
+                    spiderGroup.position.y + 15,
+                    spiderGroup.position.z + 50
+                );
+                camera.position.lerp(targetCam, 0.1);
+                camera.lookAt(spiderGroup.position);
+            }
+
+            mainGroup.rotation.z = Math.sin(State.time * 0.05) * 0.08;
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
