@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Web Data Vault 2.0 - Spider's Leap & Stasis OS</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D Visuals -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <style>
+        :root {
+            --hue-rotate: 0deg;
+            --neon-pink: #ff00ff;
+            --neon-cyan: #00ffff;
+            --neon-purple: #9d00ff;
+            --neon-orange: #ff8800;
+            --neon-green: #00ff88;
+            --bg-twilight: #0a0212;
+            --glass-bg: rgba(10, 2, 20, 0.85);
+            --glass-border: rgba(255, 0, 255, 0.4);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #05010a;
+            color: #fff;
+            font-family: 'Inter', system-ui, sans-serif;
+            user-select: none;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            filter: hue-rotate(var(--hue-rotate));
+        }
+
+        /* --- iPhone 16 Pro Max Outer Frame --- */
+        .iphone-frame {
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            max-width: 430px;
+            max-height: 932px;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-twilight);
+            border-radius: 52px;
+            box-shadow: 0 0 50px rgba(255, 0, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.2);
+            border: 8px solid #222;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media(max-width: 450px) {
+            .iphone-frame {
+                border-radius: 0;
+                border: none;
+                max-width: 100%;
+                max-height: 100%;
+            }
+        }
+
+        /* Dynamic Island */
+        .dynamic-island {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 32px;
+            background: #000;
+            border-radius: 20px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0;
+        }
+
+        /* --- Glassmorphism & Neon Glows --- */
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 0 25px rgba(255, 0, 255, 0.15), inset 0 0 15px rgba(0, 255, 255, 0.05);
+        }
+
+        .text-glow {
+            text-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+        }
+
+        .hex-btn {
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+            background: rgba(255, 0, 255, 0.15);
+            border: 1px solid var(--neon-pink);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .hex-btn:hover {
+            background: rgba(0, 255, 255, 0.3);
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 15px var(--neon-cyan);
+            transform: scale(1.05);
+        }
+
+        /* --- UI Layers & Panels --- */
+        .ui-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .pointer-events-auto { pointer-events: auto; }
+
+        .os-modal {
+            position: absolute; 
+            inset: 50px 12px 100px 12px;
+            border-radius: 24px;
+            transform: scale(0.95); opacity: 0; pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            z-index: 50;
+        }
+        .os-modal.show { transform: scale(1); opacity: 1; pointer-events: auto; }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--neon-pink); border-radius: 2px; }
+
+        /* Comic Booklet Grid */
+        .comic-card {
+            background: linear-gradient(135deg, rgba(255,0,255,0.12), rgba(0,255,255,0.06));
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 16px;
+            transition: all 0.3s;
+        }
+        .comic-card:hover {
+            border-color: var(--neon-pink);
+            box-shadow: 0 0 20px rgba(255,0,255,0.3);
+        }
+
+        /* Custom Notification Toast */
+        #toast-notification {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: rgba(0,0,0,0.9);
+            border: 1px solid var(--neon-cyan);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-family: monospace;
+            color: var(--neon-cyan);
+            box-shadow: 0 0 15px var(--neon-cyan);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s;
+            pointer-events: none;
+        }
+        #toast-notification.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="iphone-frame">
+        <!-- Dynamic Island -->
+        <div class="dynamic-island">
+            <span class="w-2 h-2 rounded-full bg-[var(--neon-green)] animate-ping"></span>
+            <span class="text-[9px] font-mono text-[var(--neon-cyan)] tracking-wider">SPIDER OS</span>
+            <span class="w-2 h-2 rounded-full bg-[var(--neon-pink)]"></span>
+        </div>
+
+        <div id="canvas-container"></div>
+        <div id="toast-notification">Notification message here</div>
+
+        <div class="ui-layer">
+            <!-- Top Bar -->
+            <div class="w-full pointer-events-auto glass border-b border-[var(--neon-pink)]/30 px-4 pt-10 pb-2 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm">🕷️</span>
+                    <span class="text-[11px] font-mono font-bold tracking-widest text-[var(--neon-cyan)] text-glow">SPIDER'S LEAP 2.0</span>
+                </div>
+                <div class="flex gap-1.5 items-center">
+                    <button onclick="openModal('comic-modal')" class="px-2.5 py-1 bg-[var(--neon-pink)]/20 border border-[var(--neon-pink)] rounded text-[9px] font-mono hover:bg-[var(--neon-pink)]/40 transition">📖 COMIC</button>
+                    <button onclick="openModal('media-modal')" class="px-2.5 py-1 bg-[var(--neon-cyan)]/20 border border-[var(--neon-cyan)] rounded text-[9px] font-mono hover:bg-[var(--neon-cyan)]/40 transition">📂 MEDIA</button>
+                    <button onclick="openModal('tamagotchi-modal')" class="px-2.5 py-1 bg-[var(--neon-orange)]/20 border border-[var(--neon-orange)] rounded text-[9px] font-mono hover:bg-[var(--neon-orange)]/40 transition">🐾 PET HUD</button>
+                </div>
+            </div>
+
+            <!-- 1. Comic Booklet Chapters Modal -->
+            <div id="comic-modal" class="os-modal glass">
+                <div class="flex items-center justify-between p-3 border-b border-[var(--glass-border)] bg-black/60">
+                    <h3 class="text-xs font-bold text-[var(--neon-pink)] font-mono tracking-widest text-glow">📖 DIGITAL COMIC BOOKLET (CHAPTERS 1-6)</h3>
+                    <button onclick="closeModal('comic-modal')" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div class="comic-card p-4">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] text-[var(--neon-cyan)] font-mono">CHAPTER 1 • THE VAULT GATES</span>
+                            <span class="text-lg">🕷️</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white mt-1">Welcome to the Twilight Nightsky</h4>
+                        <p class="text-[11px] text-gray-300 mt-2">Single-page canvas unfolds where GwenPool leaps across aviation superhero designs. Audio-reactive web strands thrum with music sync!</p>
+                        <button onclick="jumpToChapter(1)" class="mt-3 px-3 py-1 bg-[var(--neon-pink)]/30 border border-[var(--neon-pink)] rounded text-[10px] font-mono">⚡ LAUNCH SCENE 1</button>
+                    </div>
+
+                    <div class="comic-card p-4">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] text-[var(--neon-cyan)] font-mono">CHAPTER 2 • HELIX DNA SYSTEM</span>
+                            <span class="text-lg">🧬</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white mt-1">Unpacking Ancestral Data Nodes</h4>
+                        <p class="text-[11px] text-gray-300 mt-2">Floating sipped file icons of all generations. Unpack ancestors, explore audio frequencies, and anchor memories into secure storage.</p>
+                        <button onclick="jumpToChapter(2)" class="mt-3 px-3 py-1 bg-[var(--neon-cyan)]/30 border border-[var(--neon-cyan)] rounded text-[10px] font-mono">⚡ LAUNCH SCENE 2</button>
+                    </div>
+
+                    <div class="comic-card p-4">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] text-[var(--neon-cyan)] font-mono">CHAPTER 3 • WEB-SLINGING & JOYSTICK</span>
+                            <span class="text-lg">🎯</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white mt-1">First-Person Cinematic Leap</h4>
+                        <p class="text-[11px] text-gray-300 mt-2">Leap Spider-Man movie style through neon skyscrapers. Thumb-friendly controls at golden ratio 1/3 layout.</p>
+                        <button onclick="jumpToChapter(3)" class="mt-3 px-3 py-1 bg-[var(--neon-orange)]/30 border border-[var(--neon-orange)] rounded text-[10px] font-mono">⚡ LAUNCH SCENE 3</button>
+                    </div>
+
+                    <div class="comic-card p-4">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] text-[var(--neon-cyan)] font-mono">CHAPTER 4 • ANIMAL VAULT MASKS</span>
+                            <span class="text-lg">🦊</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white mt-1">Choose Your Animal Avatar & Theme</h4>
+                        <p class="text-[11px] text-gray-300 mt-2">Tap Bear, Fox, Wolf, Rabbit, Mouse, Bee, Seahorse, or Dragon masks to shift sub-vault color themes and power-ups.</p>
+                        <button onclick="jumpToChapter(4)" class="mt-3 px-3 py-1 bg-[var(--neon-pink)]/30 border border-[var(--neon-pink)] rounded text-[10px] font-mono">⚡ LAUNCH SCENE 4</button>
+                    </div>
+
+                    <div class="comic-card p-4">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] text-[var(--neon-cyan)] font-mono">CHAPTER 5 • RAINBOW DJ MEDIA FRAME</span>
+                            <span class="text-lg">🎵</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white mt-1">Inspect Music, 3D Models & PDFs</h4>
+                        <p class="text-[11px] text-gray-300 mt-2">Circular futuristic rainbow DJ-like cyberpunk design with audio visualizer and media file previewer.</p>
+                        <button onclick="jumpToChapter(5)" class="mt-3 px-3 py-1 bg-[var(--neon-cyan)]/30 border border-[var(--neon-cyan)] rounded text-[10px] font-mono">⚡ LAUNCH SCENE 5</button>
+                    </div>
+
+                    <div class="comic-card p-4">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] text-[var(--neon-cyan)] font-mono">CHAPTER 6 • PAPERDOLL ASSET STUDIO</span>
+                            <span class="text-lg">🎨</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white mt-1">Upload & Play with Custom Characters</h4>
+                        <p class="text-[11px] text-gray-300 mt-2">Customizable paperdoll sheet, custom shapes, and live media upload for title, music, effects, and stage strings.</p>
+                        <button onclick="jumpToChapter(6)" class="mt-3 px-3 py-1 bg-[var(--neon-orange)]/30 border border-[var(--neon-orange)] rounded text-[10px] font-mono">⚡ LAUNCH SCENE 6</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Media & File Upload Hub Modal -->
+            <div id="media-modal" class="os-modal glass">
+                <div class="flex items-center justify-between p-3 border-b border-[var(--glass-border)] bg-black/60">
+                    <h3 class="text-xs font-bold text-[var(--neon-cyan)] font-mono tracking-widest text-glow">📂 CUSTOM MEDIA & FILE VAULT UPLOAD</h3>
+                    <button onclick="closeModal('media-modal')" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+                    <div class="border border-[var(--neon-cyan)] rounded-xl p-3 bg-black/40">
+                        <label class="block font-mono text-[var(--neon-cyan)] mb-1">🎵 TITLE MUSIC & STAGE AUDIO UPLOAD</label>
+                        <p class="text-[10px] text-gray-400 mb-2">Upload MP3/WAV files for background title music and audio-reactive web strings.</p>
+                        <input type="file" id="audio-file-upload" accept="audio/*" class="w-full text-[10px] text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-[var(--neon-cyan)] file:text-black cursor-pointer">
+                    </div>
+
+                    <div class="border border-[var(--neon-pink)] rounded-xl p-3 bg-black/40">
+                        <label class="block font-mono text-[var(--neon-pink)] mb-1">🎮 CHARACTER SPRITE & GAME ASSETS UPLOAD</label>
+                        <p class="text-[10px] text-gray-400 mb-2">Upload custom character sprite sheets or 3D models to play with inside the spider web stage.</p>
+                        <input type="file" id="char-file-upload" accept="image/*,.obj,.gltf" class="w-full text-[10px] text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-[var(--neon-pink)] file:text-black cursor-pointer">
+                    </div>
+
+                    <div class="border border-[var(--neon-orange)] rounded-xl p-3 bg-black/40">
+                        <label class="block font-mono text-[var(--neon-orange)] mb-1">📄 DOCUMENT, PDF & MEDIA FILES VAULT</label>
+                        <p class="text-[10px] text-gray-400 mb-2">Store and inspect PDFs, images, and notes inside circular rainbow DJ nodes.</p>
+                        <input type="file" id="doc-file-upload" multiple accept=".pdf,image/*,audio/*" class="w-full text-[10px] text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-[var(--neon-orange)] file:text-black cursor-pointer">
+                    </div>
+
+                    <div id="uploaded-files-list" class="space-y-2">
+                        <div class="text-[10px] text-gray-400 font-mono">Active Loaded Files: <span id="file-count" class="text-[var(--neon-green)]">0 items</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. AI Tamagotchi & Stasis Vault Modal -->
+            <div id="tamagotchi-modal" class="os-modal glass">
+                <div class="flex items-center justify-between p-3 border-b border-[var(--glass-border)] bg-black/60">
+                    <h3 class="text-xs font-bold text-[var(--neon-orange)] font-mono tracking-widest text-glow">🐾 PET COMPANION & STASIS VAULT</h3>
+                    <button onclick="closeModal('tamagotchi-modal')" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div class="border border-[var(--neon-pink)] rounded-xl p-4 bg-black/50 flex flex-col items-center text-center">
+                        <div id="pet-avatar" class="w-20 h-20 rounded-full border-2 border-[var(--neon-pink)] flex items-center justify-center bg-gradient-to-tr from-purple-900 to-black shadow-[0_0_20px_var(--neon-pink)] mb-3 text-3xl">
+                            🕷️✨
+                        </div>
+                        <h4 id="pet-name" class="font-bold text-sm text-white">Pink Cyber Spider Companion</h4>
+                        <p class="text-[10px] text-gray-400 mt-1">Bond Status: <span id="pet-status" class="text-[var(--neon-green)]">ACTIVE & POWERING NAVIGATION</span></p>
+                        
+                        <div class="w-full grid grid-cols-3 gap-2 mt-4 text-[10px]">
+                            <div class="bg-black/60 p-2 rounded border border-gray-800">
+                                <span class="text-gray-400">ENERGY</span>
+                                <div class="w-full bg-gray-800 h-1.5 rounded mt-1 overflow-hidden">
+                                    <div id="bar-energy" class="bg-[var(--neon-cyan)] h-full w-[85%] transition-all"></div>
+                                </div>
+                            </div>
+                            <div class="bg-black/60 p-2 rounded border border-gray-800">
+                                <span class="text-gray-400">DATA SYNC</span>
+                                <div class="w-full bg-gray-800 h-1.5 rounded mt-1 overflow-hidden">
+                                    <div id="bar-sync" class="bg-[var(--neon-pink)] h-full w-[92%] transition-all"></div>
+                                </div>
+                            </div>
+                            <div class="bg-black/60 p-2 rounded border border-gray-800">
+                                <span class="text-gray-400">STASIS</span>
+                                <div class="w-full bg-gray-800 h-1.5 rounded mt-1 overflow-hidden">
+                                    <div id="bar-stasis" class="bg-[var(--neon-orange)] h-full w-[15%] transition-all"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border border-[var(--neon-cyan)] rounded-xl p-4 bg-black/50 space-y-3">
+                        <h5 class="text-xs font-mono font-bold text-[var(--neon-cyan)]">🔐 MASTER KEY STASIS UPLOAD</h5>
+                        <p class="text-[11px] text-gray-300">Treat your pet well to unlock web-slinging power-ups and faster navigation bonuses across data vaults!</p>
+                        <input type="password" id="master-key-input" placeholder="Enter Master Key (e.g., SPIDER-999)" class="w-full bg-black/70 border border-gray-700 rounded p-2 text-xs text-white outline-none focus:border-[var(--neon-cyan)]">
+                        <button onclick="triggerStasisUpload()" class="w-full py-2 bg-[var(--neon-cyan)] text-black font-bold text-xs rounded shadow-[0_0_15px_var(--neon-cyan)] hover:opacity-90 transition">INITIATE STASIS BACKUP</button>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="feedPet()" class="flex-1 py-2 bg-purple-900/40 border border-[var(--neon-purple)] rounded text-xs hover:bg-purple-900/60 transition">🍖 FEED DATA PACKET</button>
+                        <button onclick="awakenPet()" class="flex-1 py-2 bg-pink-900/40 border border-[var(--neon-pink)] rounded text-xs hover:bg-pink-900/60 transition">⚡ BOOST ENERGY</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Thumb-Friendly Control Bar (Goldener Schnitt 1/3) -->
+            <div class="w-full pointer-events-auto bg-black/90 border-t border-[var(--neon-pink)]/40 p-3 pb-6 flex flex-col items-center gap-2">
+                <div class="flex items-center gap-2 overflow-x-auto w-full justify-start md:justify-center max-w-lg py-1 px-2">
+                    <button onclick="setCameraMode('overview')" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-pink)] text-glow flex flex-col items-center shrink-0">
+                        <i data-lucide="globe" class="w-3.5 h-3.5 mb-1"></i><span>OVERVIEW</span>
+                    </button>
+                    <button onclick="setCameraMode('world')" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-cyan)] text-glow flex flex-col items-center shrink-0">
+                        <i data-lucide="box" class="w-3.5 h-3.5 mb-1"></i><span>WORLD</span>
+                    </button>
+                    <button onclick="openModal('comic-modal')" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-orange)] text-glow flex flex-col items-center shrink-0">
+                        <i data-lucide="book-open" class="w-3.5 h-3.5 mb-1"></i><span>VISUALS</span>
+                    </button>
+                    <button onclick="toggleAudio()" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-green)] text-glow flex flex-col items-center shrink-0">
+                        <i data-lucide="music" class="w-3.5 h-3.5 mb-1"></i><span>AUDIO</span>
+                    </button>
+                    <button onclick="openModal('tamagotchi-modal')" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-pink)] text-glow flex flex-col items-center shrink-0">
+                        <i data-lucide="cpu" class="w-3.5 h-3.5 mb-1"></i><span>PET HUD</span>
+                    </button>
+                    <button onclick="openModal('media-modal')" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-cyan)] text-glow flex flex-col items-center shrink-0">
+                        <i data-lucide="folder" class="w-3.5 h-3.5 mb-1"></i><span>FILES</span>
+                    </button>
+                    <button onclick="cycleTheme()" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-orange)] text-glow flex flex-col items-center shrink-0">
+                        <i data-lucide="palette" class="w-3.5 h-3.5 mb-1"></i><span>HUE</span>
+                    </button>
+                    <button onclick="toggleAudioReactive()" class="hex-btn px-3 py-2 text-[9px] font-mono text-[var(--neon-green)] text-glow flex flex-col items-center shrink-0">
+                        <i data-lucide="radio" class="w-3.5 h-3.5 mb-1"></i><span>SYNC</span>
+                    </button>
+                </div>
+
+                <!-- Hue Slider & Quick Action Bar -->
+                <div class="flex items-center justify-between w-full px-2 text-[9px] font-mono text-gray-400">
+                    <div class="flex items-center gap-2">
+                        <span>HUE:</span>
+                        <input type="range" id="hue-slider" min="0" max="360" value="0" oninput="adjustHue(this.value)" class="w-24 accent-[var(--neon-pink)] cursor-pointer">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="triggerBlinkTeleport()" class="text-[var(--neon-pink)] hover:underline">✨ BLINK</button>
+                        <span>•</span>
+                        <button onclick="shootWebAction()" class="text-[var(--neon-orange)] hover:underline">🎯 WEB-SLING</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Toast Notification helper
+        function showToast(msg) {
+            const t = document.getElementById('toast-notification');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        // Modal Helpers
+        function openModal(id) {
+            document.getElementById(id).classList.add('show');
+        }
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('show');
+        }
+
+        function jumpToChapter(chNum) {
+            closeModal('comic-modal');
+            showToast(`🚀 Launching Chapter ${chNum}: Stage Synchronized!`);
+            if (chNum === 1) setCameraMode('overview');
+            if (chNum === 3) setCameraMode('world');
+            if (chNum === 5) openModal('media-modal');
+            if (chNum === 6) openModal('media-modal');
+        }
+
+        // Hue Adjustment
+        function adjustHue(val) {
+            document.documentElement.style.setProperty('--hue-rotate', val + 'deg');
+        }
+
+        // App State
+        const State = {
+            cameraMode: 'overview',
+            spiderPos: new THREE.Vector3(0, 0, 40),
+            time: 0,
+            themeIndex: 0,
+            audioActive: false,
+            reactive: false,
+            vaults: [],
+            uploadedFilesCount: 0
+        };
+
+        // Three.js Setup
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a0212, 0.003);
+
+        const camera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x0a0212, 1);
+        container.appendChild(renderer.domElement);
+
+        // Starfield Skybox
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = [];
+        for(let i=0; i<1500; i++) {
+            starPos.push((Math.random()-0.5)*1500, (Math.random()-0.5)*1500, (Math.random()-0.5)*1500);
+        }
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+        const starMat = new THREE.PointsMaterial({color: 0xffffff, size: 2, transparent: true, opacity: 0.8});
+        scene.add(new THREE.Points(starGeo, starMat));
+
+        const mainGroup = new THREE.Group();
+        scene.add(mainGroup);
+
+        scene.add(new THREE.AmbientLight(0x442255));
+        const centerLight = new THREE.PointLight(0xff00ff, 4, 800);
+        scene.add(centerLight);
+
+        // Build Cyber Web & Particle Vaults (Audio-reactive Strings)
+        const webLineMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending });
+        const radials = 24;
+        const rings = 12;
+        const webRadius = 400;
+        const webStrings = [];
+
+        for(let i=0; i<radials; i++) {
+            const angle = (i/radials) * Math.PI * 2;
+            const pts = [new THREE.Vector3(0,0,0), new THREE.Vector3(Math.cos(angle)*webRadius, Math.sin(angle)*webRadius, (Math.random()-0.5)*30)];
+            const geom = new THREE.BufferGeometry().setFromPoints(pts);
+            const line = new THREE.Line(geom, webLineMat);
+            mainGroup.add(line);
+            webStrings.push({ line, baseAngle: angle });
+        }
+
+        const animalTypes = ['🦊 Fox', '🐺 Wolf', '🐻 Bear', '🐰 Rabbit', '🐭 Mouse', '🐝 Bee', '🐉 Dragon', '🦄 Seahorse'];
+        const vaultNodes = [];
+
+        for(let r=1; r<=rings; r++) {
+            const currentRadius = (r/rings) * webRadius;
+            const pts = [];
+            for(let i=0; i<=radials; i++) {
+                const angle = (i/radials) * Math.PI * 2;
+                pts.push(new THREE.Vector3(Math.cos(angle)*currentRadius, Math.sin(angle)*currentRadius, (Math.random()-0.5)*20));
+            }
+            mainGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), webLineMat));
+
+            if (r % 2 === 0) {
+                const angle = Math.random() * Math.PI * 2;
+                const animal = animalTypes[(r-1) % animalTypes.length];
+                
+                // Particle Cloud for Vault
+                const particleGeo = new THREE.BufferGeometry();
+                const pPositions = [];
+                for(let p=0; p<120; p++) {
+                    pPositions.push((Math.random()-0.5)*12, (Math.random()-0.5)*12, (Math.random()-0.5)*12);
+                }
+                particleGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPositions, 3));
+                
+                const pMat = new THREE.PointsMaterial({
+                    color: r % 4 === 0 ? 0x00ffff : 0xff00ff,
+                    size: 2.5,
+                    transparent: true,
+                    opacity: 0.9,
+                    blending: THREE.AdditiveBlending
+                });
+                const particleMesh = new THREE.Points(particleGeo, pMat);
+                particleMesh.position.set(Math.cos(angle)*currentRadius, Math.sin(angle)*currentRadius, (Math.random()-0.5)*25);
+
+                const vaultData = {
+                    id: `VAULT-${animal}`,
+                    mesh: particleMesh,
+                    animal: animal
+                };
+
+                mainGroup.add(particleMesh);
+                vaultNodes.push(vaultData);
+                State.vaults.push(vaultData);
+            }
+        }
+
+        // Pink Cyber Spider Mesh (Inspired by Image prompt)
+        const spiderGroup = new THREE.Group();
+        const spiderMat = new THREE.MeshPhongMaterial({ color: 0x111111, emissive: 0xff00ff, emissiveIntensity: 1.0, shininess: 100 });
+        const abdomen = new THREE.Mesh(new THREE.SphereGeometry(5, 16, 16), spiderMat); abdomen.position.y = -4; abdomen.scale.set(1, 1.3, 1);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(2.5, 16, 16), spiderMat); head.position.y = 3.5;
+        spiderGroup.add(abdomen, head);
+        scene.add(spiderGroup);
+        spiderGroup.position.copy(State.spiderPos);
+
+        // Camera Modes & Actions
+        function setCameraMode(mode) {
+            State.cameraMode = mode;
+            showToast(`📷 Camera Mode: ${mode.toUpperCase()}`);
+        }
+
+        function triggerBlinkTeleport() {
+            showToast('✨ Blink Teleport Activated!');
+            const randomVault = vaultNodes[Math.floor(Math.random() * vaultNodes.length)];
+            if(randomVault) {
+                State.spiderPos.copy(randomVault.mesh.position).add(new THREE.Vector3(0, 0, 10));
+            }
+        }
+
+        function shootWebAction() {
+            showToast('🎯 Web-Slinging to Next Data Node!');
+            triggerBlinkTeleport();
+        }
+
+        // Pet & Tamagotchi Functions
+        function triggerStasisUpload() {
+            const key = document.getElementById('master-key-input').value;
+            if(!key) {
+                showToast('❌ Please enter your Master Key!');
+                return;
+            }
+            document.getElementById('pet-status').textContent = 'SECURELY SAVED IN STASIS VAULT';
+            document.getElementById('bar-stasis').style.width = '100%';
+            showToast(`🔐 Master Key [${key}] Stasis Backup Complete!`);
+        }
+
+        function feedPet() {
+            document.getElementById('bar-energy').style.width = '100%';
+            showToast('🍖 Data packet fed! Pet power-up active.');
+        }
+
+        function awakenPet() {
+            document.getElementById('bar-energy').style.width = '95%';
+            showToast('⚡ Pet energy fully boosted for navigation!');
+        }
+
+        function cycleTheme() {
+            State.themeIndex = (State.themeIndex + 1) % 3;
+            const colors = [0xff00ff, 0x00ffff, 0xff8800];
+            centerLight.color.setHex(colors[State.themeIndex]);
+            spiderMat.emissive.setHex(colors[State.themeIndex]);
+            showToast(`🎨 Theme Shifted!`);
+        }
+
+        // Web Audio API Synthesizer & Audio Reactive toggle
+        let audioCtx = null;
+        let audioAnalyser = null;
+        let audioSource = null;
+
+        function toggleAudio() {
+            State.audioActive = !State.audioActive;
+            if(State.audioActive) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    audioAnalyser = audioCtx.createAnalyser();
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(110, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+                    osc.connect(gain);
+                    gain.connect(audioAnalyser);
+                    audioAnalyser.connect(audioCtx.destination);
+                    osc.start();
+                    showToast('🎵 Title & Stage Audio Synth Playing');
+                } catch(e) {
+                    showToast('🎵 Audio initialized');
+                }
+            } else {
+                if(audioCtx) audioCtx.close();
+                showToast('🔇 Audio Muted');
+            }
+        }
+
+        function toggleAudioReactive() {
+            State.reactive = !State.reactive;
+            showToast(State.reactive ? '📻 Audio-Reactive Strings: ON' : '📻 Audio-Reactive Strings: OFF');
+        }
+
+        // File Upload Handlers
+        document.getElementById('audio-file-upload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(file) {
+                State.uploadedFilesCount++;
+                document.getElementById('file-count').textContent = `${State.uploadedFilesCount} items`;
+                showToast(`🎵 Loaded Audio: ${file.name}`);
+            }
+        });
+
+        document.getElementById('char-file-upload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(file) {
+                State.uploadedFilesCount++;
+                document.getElementById('file-count').textContent = `${State.uploadedFilesCount} items`;
+                showToast(`🎮 Character Asset Loaded: ${file.name}`);
+            }
+        });
+
+        document.getElementById('doc-file-upload').addEventListener('change', (e) => {
+            const files = e.target.files;
+            if(files.length > 0) {
+                State.uploadedFilesCount += files.length;
+                document.getElementById('file-count').textContent = `${State.uploadedFilesCount} items`;
+                showToast(`📂 Added ${files.length} document/media files to Vault!`);
+            }
+        });
+
+        // Animation Loop
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            State.time += delta;
+
+            // Animate vaults & web strings
+            State.vaults.forEach((v, i) => {
+                v.mesh.rotation.y += 0.02;
+                v.mesh.rotation.x = Math.sin(State.time * 2 + i) * 0.4;
+                if(State.reactive) {
+                    const scale = 1 + Math.sin(State.time * 6 + i) * 0.35;
+                    v.mesh.scale.setScalar(scale);
+                } else {
+                    v.mesh.scale.setScalar(1);
+                }
+            });
+
+            // Spider Movement & Bobbing
+            spiderGroup.position.lerp(State.spiderPos, 0.1);
+            spiderGroup.rotation.z = Math.sin(State.time * 3) * 0.1;
+
+            // Camera handling
+            if(State.cameraMode === 'overview') {
+                const targetCam = new THREE.Vector3(
+                    spiderGroup.position.x + Math.sin(State.time * 0.3) * 150,
+                    spiderGroup.position.y - 150,
+                    spiderGroup.position.z + 100
+                );
+                camera.position.lerp(targetCam, 0.05);
+                camera.lookAt(spiderGroup.position);
+            } else {
+                const targetCam = new THREE.Vector3(
+                    spiderGroup.position.x,
+                    spiderGroup.position.y + 15,
+                    spiderGroup.position.z + 50
+                );
+                camera.position.lerp(targetCam, 0.1);
+                camera.lookAt(spiderGroup.position);
+            }
+
+            mainGroup.rotation.z = Math.sin(State.time * 0.05) * 0.08;
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
