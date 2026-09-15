@@ -1,1 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Web Data Vault</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D Visuals -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- JSZip for Archive Export & Import -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
 
+    <style>
+        :root {
+            --neon-pink: #ff00ff;
+            --neon-orange: #ff8800;
+            --neon-cyan: #00ffff;
+            --bg-universe: #05000a;
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-universe);
+            color: #fff;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            user-select: none;
+            touch-action: none; /* Prevent default browser swiping/scrolling */
+        }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        .ui-layer {
+            position: relative;
+            z-index: 10;
+            pointer-events: none;
+            height: 100dvh;
+        }
+        .pointer-events-auto {
+            pointer-events: auto;
+        }
+        
+        /* Cyberfunk Glassmorphism */
+        .glass-panel {
+            background: rgba(10, 0, 15, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 0, 255, 0.3);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255, 0, 255, 0.1);
+        }
+        .glass-panel-orange {
+            border-color: rgba(255, 136, 0, 0.4);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255, 136, 0, 0.1);
+        }
+        
+        /* Neon Glows */
+        .glow-text-pink { text-shadow: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink); }
+        .glow-text-orange { text-shadow: 0 0 10px var(--neon-orange), 0 0 20px var(--neon-orange); }
+        
+        .hud-btn {
+            background: linear-gradient(135deg, rgba(255,0,255,0.1) 0%, rgba(255,136,0,0.1) 100%);
+            border: 1px solid rgba(255, 0, 255, 0.4);
+            transition: all 0.2s ease;
+        }
+        .hud-btn:active, .hud-btn:hover {
+            background: rgba(255, 0, 255, 0.2);
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.4);
+            border-color: var(--neon-pink);
+        }
+
+        /* Bottom Sheet Animation */
+        .bottom-sheet {
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .bottom-sheet.open {
+            transform: translateY(0);
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.5); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 0, 255, 0.5); border-radius: 4px; }
+
+        .scanline {
+            background: linear-gradient(to bottom, transparent 50%, rgba(255, 0, 255, 0.04) 51%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            position: absolute;
+            inset: 0;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-pink-900 selection:text-pink-100">
+
+    <div id="canvas-container"></div>
+    <div class="scanline"></div>
+
+    <div class="ui-layer flex flex-col justify-between">
+        
+        <!-- TOP: Minimal Header for Visual Exploration Sector -->
+        <header class="p-4 flex justify-between items-start pointer-events-auto">
+            <div class="glass-panel rounded-2xl p-2 px-4 flex items-center gap-3">
+                <i data-lucide="spider" class="w-6 h-6 text-pink-500 animate-pulse"></i>
+                <div>
+                    <h1 class="text-lg md:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-orange-500 tracking-widest uppercase glow-text-pink">
+                        Arachna Web
+                    </h1>
+                    <p class="text-[9px] text-pink-300/70 font-mono tracking-widest">
+                        CYBERFUNK VAULT // ACTIVE
+                    </p>
+                </div>
+            </div>
+            
+            <div class="flex flex-col gap-2">
+                <button id="btn-audio" class="glass-panel p-2.5 rounded-full text-pink-400 hover:text-pink-300">
+                    <i id="audio-icon" data-lucide="volume-x" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- MIDDLE: Invisible touch zone for swiping (handled globally via canvas listeners, but kept clear here) -->
+        <div class="flex-1 w-full flex items-center justify-center p-4">
+             <!-- Interactive notifications could go here -->
+             <div id="notification-area" class="text-orange-400 font-mono text-xs text-center glow-text-orange opacity-0 transition-opacity duration-300 bg-black/50 px-4 py-2 rounded-full border border-orange-500/30">
+                Action registered.
+             </div>
+        </div>
+
+        <!-- BOTTOM: Interaction Sector (HUD Button Menu) -->
+        <div class="pointer-events-auto p-2 pb-4 md:p-6 w-full flex flex-col gap-2">
+            
+            <!-- Quick Stats Row -->
+            <div class="flex justify-between px-2 font-mono text-[10px] text-pink-400 tracking-wider">
+                <span>NODES: <span id="stat-nodes" class="text-orange-400 font-bold">60</span></span>
+                <span>INTEGRITY: <span class="text-pink-500 font-bold glow-text-pink">100%</span></span>
+            </div>
+
+            <!-- Main HUD Controls -->
+            <div class="glass-panel rounded-3xl p-2 flex items-center justify-between gap-1 overflow-x-auto shadow-2xl">
+                <button id="btn-search" class="hud-btn p-3 rounded-2xl flex-1 flex flex-col items-center gap-1 text-pink-400 shrink-0 min-w-[70px]">
+                    <i data-lucide="search" class="w-5 h-5"></i>
+                    <span class="text-[9px] font-mono">SEARCH</span>
+                </button>
+                <button id="btn-inject" class="hud-btn p-3 rounded-2xl flex-1 flex flex-col items-center gap-1 text-orange-400 shrink-0 min-w-[70px]">
+                    <i data-lucide="zap" class="w-5 h-5"></i>
+                    <span class="text-[9px] font-mono">INJECT</span>
+                </button>
+                <button id="btn-sweep" class="hud-btn p-3 rounded-2xl flex-1 flex flex-col items-center gap-1 text-cyan-400 shrink-0 min-w-[70px]">
+                    <i data-lucide="radar" class="w-5 h-5"></i>
+                    <span class="text-[9px] font-mono">SWEEP</span>
+                </button>
+                <button id="btn-ai" class="hud-btn p-3 rounded-2xl flex-1 flex flex-col items-center gap-1 text-pink-500 shrink-0 min-w-[70px]">
+                    <i data-lucide="bot" class="w-5 h-5"></i>
+                    <span class="text-[9px] font-mono">AI WEB</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Node Inspector (Bottom Sheet) -->
+    <div id="sheet-inspector" class="fixed inset-x-0 bottom-0 z-50 bottom-sheet glass-panel glass-panel-orange rounded-t-3xl border-b-0 pb-8 pt-4 px-6 max-h-[75vh] overflow-y-auto">
+        <div class="w-12 h-1.5 bg-orange-500/50 rounded-full mx-auto mb-4"></div>
+        
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 text-[9px] font-mono font-bold rounded bg-orange-950 text-orange-400 border border-orange-800">WEB SHARD</span>
+                    <span id="inspect-sector" class="text-xs font-mono text-pink-400">THREAD-01</span>
+                </div>
+                <h3 id="inspect-title" class="text-xl font-black text-white font-mono tracking-tight glow-text-orange">NODE-0x000</h3>
+            </div>
+            <button class="btn-close-sheet p-2 rounded-full bg-black/40 text-gray-400 hover:text-white border border-gray-700">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="space-y-3 font-mono text-xs">
+            <div class="flex justify-between py-2 border-b border-orange-500/20">
+                <span class="text-pink-300">Type Classification:</span>
+                <span id="inspect-type" class="text-orange-400 font-bold">Silk Data</span>
+            </div>
+            <div class="flex justify-between py-2 border-b border-orange-500/20">
+                <span class="text-pink-300">Coordinates:</span>
+                <span id="inspect-coords" class="text-cyan-400">0.0, 0.0, 0.0</span>
+            </div>
+            
+            <div class="mt-2">
+                <span class="text-pink-300 block mb-2">Encrypted Payload:</span>
+                <div id="inspect-payload" class="bg-black/60 p-3 rounded-xl border border-pink-500/30 text-pink-100 font-mono text-[11px] break-all max-h-32 overflow-y-auto shadow-inner">
+                    ...
+                </div>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3 mt-5">
+            <button id="btn-copy" class="py-3 px-4 rounded-xl bg-orange-900/40 hover:bg-orange-800/60 text-xs font-mono text-orange-300 border border-orange-500/50 transition flex items-center justify-center gap-2">
+                <i data-lucide="copy" class="w-4 h-4"></i> Extract
+            </button>
+            <button id="btn-purge" class="py-3 px-4 rounded-xl bg-red-950/60 hover:bg-red-900/80 text-xs font-mono text-red-400 border border-red-800/50 transition flex items-center justify-center gap-2">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> Burn
+            </button>
+        </div>
+    </div>
+
+    <!-- Search/Inject Overlay (Bottom Sheet) -->
+    <div id="sheet-tools" class="fixed inset-x-0 bottom-0 z-50 bottom-sheet glass-panel rounded-t-3xl border-b-0 pb-8 pt-4 px-6 max-h-[80vh] overflow-y-auto">
+        <div class="w-12 h-1.5 bg-pink-500/50 rounded-full mx-auto mb-4"></div>
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="tools-title" class="text-lg font-bold text-pink-400 font-mono glow-text-pink">Vault Tools</h3>
+            <button class="btn-close-sheet p-2 rounded-full bg-black/40 text-gray-400 hover:text-white border border-gray-700">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Search View -->
+        <div id="view-search" class="hidden space-y-4">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-3 w-5 h-5 text-pink-500"></i>
+                <input type="text" id="search-input" placeholder="Search threads or payloads..." class="w-full bg-black/50 border border-pink-500/40 rounded-xl py-3 pl-10 pr-4 text-white font-mono text-sm focus:border-pink-400 focus:outline-none">
+            </div>
+            <p class="text-[10px] font-mono text-gray-400 text-center">Searching active web nodes...</p>
+        </div>
+
+        <!-- Inject View -->
+        <form id="view-inject" class="hidden space-y-4 font-mono text-xs">
+            <div>
+                <label class="block text-pink-400 mb-1">Thread Identifier</label>
+                <input type="text" id="inject-label" placeholder="NODE-XX" class="w-full bg-black/50 border border-pink-500/40 rounded-xl p-3 text-white focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-pink-400 mb-1">Payload</label>
+                <textarea id="inject-payload" rows="3" required placeholder="Data crystal sequence..." class="w-full bg-black/50 border border-pink-500/40 rounded-xl p-3 text-white focus:outline-none"></textarea>
+            </div>
+            <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-pink-600 to-orange-600 text-white font-bold tracking-wider hover:opacity-90">WEAVE DATA</button>
+        </form>
+
+        <!-- AI View -->
+        <div id="view-ai" class="hidden flex flex-col h-64">
+            <div id="ai-chat" class="flex-1 overflow-y-auto space-y-3 pr-2 mb-3 font-mono text-[11px]">
+                <div class="bg-pink-900/30 border border-pink-800/50 p-3 rounded-xl text-pink-200">
+                    Arachna AI awake. The web vibrates with data. What do you seek in the neon threads?
+                </div>
+            </div>
+            <form id="form-ai" class="flex gap-2">
+                <input type="text" id="ai-input" placeholder="Query the spider..." class="flex-1 bg-black/50 border border-pink-500/40 rounded-xl px-3 py-2 text-white font-mono focus:outline-none">
+                <button type="submit" class="p-2 rounded-xl bg-pink-600 text-white"><i data-lucide="send" class="w-4 h-4"></i></button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // -- App State --
+        const appState = {
+            nodes: [],
+            selectedNodeId: null,
+            audioEnabled: false,
+            rotationSpeedX: 0.002,
+            rotationSpeedY: 0.005,
+        };
+
+        const notificationArea = document.getElementById('notification-area');
+        function showNotification(msg) {
+            notificationArea.textContent = msg;
+            notificationArea.classList.remove('opacity-0');
+            setTimeout(() => notificationArea.classList.add('opacity-0'), 2500);
+        }
+
+        // Initialize Icons
+        function safeCreateIcons() {
+            if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+        }
+
+        // -- Audio Synth Engine --
+        let audioCtx, masterGain;
+        function initAudio() {
+            if (audioCtx) return;
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            masterGain = audioCtx.createGain();
+            masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            masterGain.connect(audioCtx.destination);
+            
+            // Cyberfunk Drone
+            [65.41, 130.81].forEach(freq => { // C2, C3
+                const osc = audioCtx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.frequency.value = freq;
+                
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 400;
+                
+                const lfo = audioCtx.createOscillator();
+                lfo.frequency.value = 0.5;
+                const lfoGain = audioCtx.createGain();
+                lfoGain.gain.value = 200;
+                lfo.connect(lfoGain);
+                lfoGain.connect(filter.frequency);
+                lfo.start();
+
+                const oscGain = audioCtx.createGain();
+                oscGain.gain.value = 0.1;
+
+                osc.connect(filter);
+                filter.connect(oscGain);
+                oscGain.connect(masterGain);
+                osc.start();
+            });
+        }
+
+        function playSfx(type) {
+            if (!appState.audioEnabled || !audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(masterGain);
+
+            if (type === 'pluck') { // Plucking a web string
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440 + Math.random()*440, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(110, audioCtx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'zap') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            }
+        }
+
+        document.getElementById('btn-audio').addEventListener('click', () => {
+            appState.audioEnabled = !appState.audioEnabled;
+            const icon = document.getElementById('audio-icon');
+            if (appState.audioEnabled) {
+                initAudio();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                masterGain.gain.setTargetAtTime(0.4, audioCtx.currentTime, 0.5);
+                icon.setAttribute('data-lucide', 'volume-2');
+                showNotification('Cyberfunk Audio: ON');
+            } else {
+                if (masterGain) masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.5);
+                icon.setAttribute('data-lucide', 'volume-x');
+                showNotification('Audio: OFF');
+            }
+            safeCreateIcons();
+        });
+
+        // -- Three.js Setup --
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        // Universe Black with slight pink fog
+        scene.fog = new THREE.FogExp2(0x05000a, 0.003);
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 120);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x05000a, 1);
+        container.appendChild(renderer.domElement);
+
+        const centralGroup = new THREE.Group();
+        scene.add(centralGroup);
+
+        // Lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+        const pinkLight = new THREE.PointLight(0xff00ff, 2, 200);
+        pinkLight.position.set(0, 20, 0);
+        centralGroup.add(pinkLight);
+        
+        const orangeLight = new THREE.PointLight(0xff8800, 2, 200);
+        orangeLight.position.set(0, -20, 0);
+        centralGroup.add(orangeLight);
+
+        // 1. Procedural Spider
+        const spiderGroup = new THREE.Group();
+        
+        // Spider Materials
+        const spiderMat = new THREE.MeshPhongMaterial({
+            color: 0x220022, 
+            emissive: 0xff0055, 
+            emissiveIntensity: 0.5,
+            shininess: 100
+        });
+
+        // Abdomen
+        const abdomen = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 16), spiderMat);
+        abdomen.position.z = -3;
+        abdomen.scale.set(1, 1, 1.5);
+        spiderGroup.add(abdomen);
+
+        // Cephalothorax (Head)
+        const head = new THREE.Mesh(new THREE.SphereGeometry(2, 16, 16), spiderMat);
+        head.position.z = 2;
+        spiderGroup.add(head);
+
+        // Legs
+        const legMaterial = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 });
+        for (let i = 0; i < 8; i++) {
+            const side = i % 2 === 0 ? 1 : -1;
+            const row = Math.floor(i / 2);
+            
+            const points = [];
+            points.push(new THREE.Vector3(side * 1.5, 0, 2 - row)); // Base
+            points.push(new THREE.Vector3(side * 8, 5, 4 - row * 2)); // Joint 1
+            points.push(new THREE.Vector3(side * 14, -4, 5 - row * 3)); // Tip
+            
+            const legGeo = new THREE.BufferGeometry().setFromPoints(points);
+            const leg = new THREE.Line(legGeo, legMaterial);
+            spiderGroup.add(leg);
+        }
+        centralGroup.add(spiderGroup);
+
+        // 2. Wasp Nest Optics (Orange Hexagonal layers)
+        const nestGroup = new THREE.Group();
+        const nestMat = new THREE.MeshBasicMaterial({ 
+            color: 0xff8800, 
+            wireframe: true, 
+            transparent: true, 
+            opacity: 0.15 
+        });
+
+        for (let i = 0; i < 3; i++) {
+            const radius = 20 + (i * 10);
+            const height = 40 + (i * 15);
+            // 6 radial segments creates a hexagon
+            const nestGeo = new THREE.CylinderGeometry(radius, radius, height, 6, 4, true);
+            const nestShell = new THREE.Mesh(nestGeo, nestMat);
+            nestShell.rotation.x = Math.PI / 2;
+            nestShell.rotation.z = (i * Math.PI) / 6; // Offset twists
+            nestGroup.add(nestShell);
+        }
+        centralGroup.add(nestGroup);
+
+        // 3. Neon Spiderweb & Nodes
+        const webGroup = new THREE.Group();
+        const nodeMeshes = [];
+        
+        const webRings = 6;
+        const webSpokes = 12;
+        const maxRadius = 80;
+
+        const webLineMat = new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.3 });
+        const webPoints = [];
+
+        // Generate radial spokes
+        for (let s = 0; s < webSpokes; s++) {
+            const angle = (s / webSpokes) * Math.PI * 2;
+            const x = Math.cos(angle) * maxRadius;
+            const y = Math.sin(angle) * maxRadius;
+            
+            const p1 = new THREE.Vector3(0,0,0);
+            const p2 = new THREE.Vector3(x, y, 0);
+            // Randomly push some z for 3D depth
+            p2.z = (Math.random() - 0.5) * 40;
+            
+            const spokeGeo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+            webGroup.add(new THREE.Line(spokeGeo, webLineMat));
+        }
+
+        // Generate spiral/rings and place nodes
+        let nodeCount = 0;
+        for (let r = 1; r <= webRings; r++) {
+            const currentRadius = (r / webRings) * maxRadius;
+            const ringPoints = [];
+            
+            for (let s = 0; s < webSpokes; s++) {
+                const angle = (s / webSpokes) * Math.PI * 2;
+                // Add slight spiral offset and noise
+                const rNoise = currentRadius + (Math.random() * 5 - 2.5);
+                const x = Math.cos(angle) * rNoise;
+                const y = Math.sin(angle) * rNoise;
+                const z = (Math.random() - 0.5) * 30; // Depth variation
+                
+                const pt = new THREE.Vector3(x, y, z);
+                ringPoints.push(pt);
+
+                // Add a Node at this web intersection
+                if (Math.random() > 0.3) {
+                    createWebNode(pt, nodeCount++);
+                }
+            }
+            // Close the loop
+            ringPoints.push(ringPoints[0]);
+            const ringGeo = new THREE.BufferGeometry().setFromPoints(ringPoints);
+            webGroup.add(new THREE.Line(ringGeo, webLineMat));
+        }
+        
+        centralGroup.add(webGroup);
+
+        function createWebNode(pos, index) {
+            const isCritical = Math.random() > 0.8;
+            const color = isCritical ? 0x00ffff : 0xff8800; // Cyan or Orange
+            const geo = new THREE.OctahedronGeometry(isCritical ? 1.5 : 1, 0);
+            const mat = new THREE.MeshPhongMaterial({
+                color: color,
+                emissive: color,
+                emissiveIntensity: 0.7,
+                flatShading: true
+            });
+
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.copy(pos);
+            
+            const id = 'NODE-0x' + index.toString(16).toUpperCase().padStart(3, '0');
+            mesh.userData = {
+                id: id,
+                sector: `THREAD-${Math.floor(Math.random()*5)+1}`,
+                type: isCritical ? 'Nexus Core' : 'Silk Data',
+                payload: `DATA_CRYSTAL // ${Math.random().toString(36).substring(2, 12).toUpperCase()}`,
+                originalColor: color
+            };
+
+            webGroup.add(mesh);
+            nodeMeshes.push(mesh);
+            appState.nodes.push(mesh.userData);
+        }
+        document.getElementById('stat-nodes').textContent = nodeMeshes.length;
+
+        // 4. Glitter/Universal Particles
+        const particleGeo = new THREE.BufferGeometry();
+        const particleCount = 1000;
+        const posArray = new Float32Array(particleCount * 3);
+        const colorArray = new Float32Array(particleCount * 3);
+        const pColor = new THREE.Color();
+
+        for(let i=0; i < particleCount * 3; i+=3) {
+            posArray[i] = (Math.random() - 0.5) * 300;
+            posArray[i+1] = (Math.random() - 0.5) * 300;
+            posArray[i+2] = (Math.random() - 0.5) * 300;
+
+            // Mix pink and orange
+            pColor.setHex(Math.random() > 0.5 ? 0xff00ff : 0xff8800);
+            colorArray[i] = pColor.r;
+            colorArray[i+1] = pColor.g;
+            colorArray[i+2] = pColor.b;
+        }
+
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        particleGeo.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+        
+        const particleMat = new THREE.PointsMaterial({
+            size: 1.5,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.6,
+            blending: THREE.AdditiveBlending
+        });
+        
+        const particles = new THREE.Points(particleGeo, particleMat);
+        scene.add(particles);
+
+        const raycaster = new THREE.Raycaster();
+        const touchPos = new THREE.Vector2();
+
+        // Object picking logic
+        function checkIntersection(x, y) {
+            touchPos.x = (x / window.innerWidth) * 2 - 1;
+            touchPos.y = -(y / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(touchPos, camera);
+            const intersects = raycaster.intersectObjects(nodeMeshes);
+
+            if (intersects.length > 0) {
+                openNodeInspector(intersects[0].object);
+                playSfx('pluck');
+            }
+        }
+
+        // Mouse clicks
+        window.addEventListener('click', (e) => {
+            // Ignore if clicking UI
+            if (e.target.closest('.ui-layer') || e.target.closest('.bottom-sheet')) return;
+            checkIntersection(e.clientX, e.clientY);
+        });
+
+        // Touch interactions for rotation and picking
+        let touchStartX = 0, touchStartY = 0;
+        let isTouching = false;
+        let lastTouchTime = 0;
+
+        container.addEventListener('touchstart', (e) => {
+            if(e.touches.length === 1) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                isTouching = true;
+            }
+        }, {passive: false});
+
+        container.addEventListener('touchmove', (e) => {
+            if(!isTouching || e.touches.length !== 1) return;
+            e.preventDefault(); // Prevent scroll
+            
+            const touchX = e.touches[0].clientX;
+            const touchY = e.touches[0].clientY;
+            
+            const deltaX = touchX - touchStartX;
+            const deltaY = touchY - touchStartY;
+            
+            // Map swipe to rotation speed offset temporarily
+            appState.rotationSpeedY += deltaX * 0.0001;
+            appState.rotationSpeedX += deltaY * 0.0001;
+            
+            // Dampen speed limits
+            appState.rotationSpeedY = Math.max(-0.05, Math.min(0.05, appState.rotationSpeedY));
+            appState.rotationSpeedX = Math.max(-0.05, Math.min(0.05, appState.rotationSpeedX));
+
+            touchStartX = touchX;
+            touchStartY = touchY;
+        }, {passive: false});
+
+        container.addEventListener('touchend', (e) => {
+            isTouching = false;
+            // Simple tap detection based on time
+            const now = Date.now();
+            if (now - lastTouchTime < 300) {
+                // Was a quick tap, check intersection
+                const touch = e.changedTouches[0];
+                checkIntersection(touch.clientX, touch.clientY);
+            }
+            lastTouchTime = now;
+        });
+
+        // Keyboard Support
+        window.addEventListener('keydown', (e) => {
+            const rotDelta = 0.02;
+            if (e.key === 'ArrowLeft' || e.key === 'a') appState.rotationSpeedY -= rotDelta;
+            if (e.key === 'ArrowRight' || e.key === 'd') appState.rotationSpeedY += rotDelta;
+            if (e.key === 'ArrowUp' || e.key === 'w') appState.rotationSpeedX -= rotDelta;
+            if (e.key === 'ArrowDown' || e.key === 's') appState.rotationSpeedX += rotDelta;
+            
+            // Zoom
+            if (e.key === '+' || e.key === '=') camera.position.z -= 5;
+            if (e.key === '-') camera.position.z += 5;
+            camera.position.z = Math.max(20, Math.min(250, camera.position.z));
+        });
+
+        // Wheel Zoom
+        container.addEventListener('wheel', (e) => {
+            camera.position.z += e.deltaY * 0.1;
+            camera.position.z = Math.max(20, Math.min(250, camera.position.z));
+        });
+
+        const sheets = document.querySelectorAll('.bottom-sheet');
+        const sheetInspector = document.getElementById('sheet-inspector');
+        const sheetTools = document.getElementById('sheet-tools');
+        
+        function closeAllSheets() {
+            sheets.forEach(s => s.classList.remove('open'));
+            // Reset node highlights
+            nodeMeshes.forEach(mesh => {
+                mesh.material.emissive.setHex(mesh.userData.originalColor);
+                mesh.scale.set(1, 1, 1);
+            });
+            appState.selectedNodeId = null;
+        }
+
+        document.querySelectorAll('.btn-close-sheet').forEach(btn => {
+            btn.addEventListener('click', closeAllSheets);
+        });
+
+        function openNodeInspector(mesh) {
+            closeAllSheets();
+            const data = mesh.userData;
+            appState.selectedNodeId = data.id;
+
+            document.getElementById('inspect-title').textContent = data.id;
+            document.getElementById('inspect-sector').textContent = data.sector;
+            document.getElementById('inspect-type').textContent = data.type;
+            document.getElementById('inspect-coords').textContent = `${mesh.position.x.toFixed(1)}, ${mesh.position.y.toFixed(1)}, ${mesh.position.z.toFixed(1)}`;
+            document.getElementById('inspect-payload').textContent = data.payload;
+
+            // Highlight
+            mesh.material.emissive.setHex(0xffffff);
+            mesh.scale.set(1.5, 1.5, 1.5);
+
+            sheetInspector.classList.add('open');
+        }
+
+        function showToolView(viewId, title) {
+            closeAllSheets();
+            document.getElementById('tools-title').textContent = title;
+            ['view-search', 'view-inject', 'view-ai'].forEach(v => document.getElementById(v).classList.add('hidden'));
+            document.getElementById(viewId).classList.remove('hidden');
+            sheetTools.classList.add('open');
+        }
+
+        document.getElementById('btn-search').addEventListener('click', () => showToolView('view-search', 'Search Web'));
+        document.getElementById('btn-inject').addEventListener('click', () => showToolView('view-inject', 'Inject Data'));
+        document.getElementById('btn-ai').addEventListener('click', () => showToolView('view-ai', 'Arachna AI'));
+
+        // Search logic
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            nodeMeshes.forEach(mesh => {
+                const match = mesh.userData.id.toLowerCase().includes(query) || mesh.userData.payload.toLowerCase().includes(query);
+                if (query.length > 0 && match) {
+                    mesh.material.emissive.setHex(0xffffff);
+                    mesh.scale.set(1.4, 1.4, 1.4);
+                } else {
+                    mesh.material.emissive.setHex(mesh.userData.originalColor);
+                    mesh.scale.set(1, 1, 1);
+                }
+            });
+        });
+
+        // Inject logic
+        document.getElementById('view-inject').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const label = document.getElementById('inject-label').value.trim() || `NODE-0x${Math.floor(Math.random()*999)}`;
+            const payload = document.getElementById('inject-payload').value;
+
+            // Random pos near web
+            const pos = new THREE.Vector3((Math.random()-0.5)*100, (Math.random()-0.5)*100, (Math.random()-0.5)*40);
+            
+            const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(2, 0), new THREE.MeshPhongMaterial({color: 0xff00ff, emissive: 0xff00ff}));
+            mesh.position.copy(pos);
+            mesh.userData = { id: label, sector: 'INJECTED', type: 'Foreign Data', payload: payload, originalColor: 0xff00ff };
+            
+            webGroup.add(mesh);
+            nodeMeshes.push(mesh);
+            appState.nodes.push(mesh.userData);
+            document.getElementById('stat-nodes').textContent = nodeMeshes.length;
+
+            playSfx('zap');
+            showNotification(`Injected ${label}`);
+            closeAllSheets();
+            e.target.reset();
+        });
+
+        // AI logic mockup
+        document.getElementById('form-ai').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('ai-input');
+            const chat = document.getElementById('ai-chat');
+            if(!input.value.trim()) return;
+
+            // User msg
+            chat.innerHTML += `<div class="bg-black/40 border border-gray-700 p-3 rounded-xl text-white ml-4 text-right">${input.value}</div>`;
+            input.value = '';
+            
+            // Bot reply
+            setTimeout(() => {
+                chat.innerHTML += `<div class="bg-pink-900/30 border border-pink-800/50 p-3 rounded-xl text-pink-200 mr-4">Analyzing vibrations... The threads confirm this data is secure.</div>`;
+                chat.scrollTop = chat.scrollHeight;
+                playSfx('zap');
+            }, 600);
+        });
+
+        // Sweep action
+        document.getElementById('btn-sweep').addEventListener('click', () => {
+            playSfx('zap');
+            showNotification('Quantum sweep initiated...');
+            
+            // Visual wave effect
+            let delay = 0;
+            nodeMeshes.forEach(mesh => {
+                setTimeout(() => {
+                    mesh.scale.set(2, 2, 2);
+                    setTimeout(() => mesh.scale.set(1, 1, 1), 200);
+                }, delay);
+                delay += 15;
+            });
+        });
+
+        // Inspector Actions
+        document.getElementById('btn-copy').addEventListener('click', () => {
+            navigator.clipboard.writeText(document.getElementById('inspect-payload').textContent);
+            showNotification('Data copied to clipboard');
+        });
+
+        document.getElementById('btn-purge').addEventListener('click', () => {
+            if (!appState.selectedNodeId) return;
+            const idx = nodeMeshes.findIndex(m => m.userData.id === appState.selectedNodeId);
+            if (idx !== -1) {
+                webGroup.remove(nodeMeshes[idx]);
+                nodeMeshes.splice(idx, 1);
+                appState.nodes = appState.nodes.filter(n => n.id !== appState.selectedNodeId);
+                document.getElementById('stat-nodes').textContent = nodeMeshes.length;
+                playSfx('zap');
+                showNotification('Node burned from web');
+                closeAllSheets();
+            }
+        });
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            // Gradually slow down rotation if user swiped (friction)
+            appState.rotationSpeedX *= 0.98;
+            appState.rotationSpeedY *= 0.98;
+            
+            // Ensure minimum idle rotation
+            const minSpeed = 0.001;
+            const actualRotY = Math.abs(appState.rotationSpeedY) > minSpeed ? appState.rotationSpeedY : minSpeed;
+            const actualRotX = appState.rotationSpeedX;
+
+            centralGroup.rotation.y += actualRotY;
+            centralGroup.rotation.x += actualRotX;
+
+            // Spider idle animation
+            const time = clock.getElapsedTime();
+            spiderGroup.position.y = Math.sin(time * 2) * 1.5; // Hover
+            
+            // Wasp Nest contrary rotation
+            nestGroup.rotation.y -= actualRotY * 1.5;
+            nestGroup.rotation.x = Math.sin(time * 0.5) * 0.1;
+
+            // Particles
+            particles.rotation.y -= 0.0005;
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.onload = () => {
+            safeCreateIcons();
+            animate();
+        };
+    </script>
+</body>
+</html>
