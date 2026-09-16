@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>STARWEBER: Holopaper Membranix Prototype</title>
+    <style>
+        :root {
+            /* Base Colors */
+            --bg-base: #e0e5ec;
+            --grid-thin: rgba(150, 160, 170, 0.3);
+            --grid-thick: rgba(150, 160, 170, 0.6);
+            --glass-bg: rgba(255, 255, 255, 0.15);
+            --glass-border: rgba(255, 255, 255, 0.4);
+            
+            /* Filter Colors */
+            --color-heart: #ff4b72;   /* Pink/Red */
+            --color-diamond: #00e5ff; /* Cyan/Blue */
+            --color-club: #00ff7f;    /* Eco Green */
+            --color-spade: #9d4edd;   /* Deep Purple */
+            --color-x: #ffffff;       /* Neutral/Reset */
+
+            /* Active State */
+            --active-color: var(--color-x);
+            --filter-tint: rgba(255, 255, 255, 0);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+        body {
+            background-color: #0a0a0c;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            /* Sublte holographic ambient background */
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(255, 75, 114, 0.1), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(0, 229, 255, 0.1), transparent 25%);
+        }
+
+        #device-shell {
+            position: relative;
+            width: 95vw;
+            height: 90vh;
+            max-width: 1200px;
+            max-height: 800px;
+            background: var(--bg-base);
+            border-radius: 20px;
+            box-shadow: 
+                0 0 50px rgba(0,0,0,0.8),
+                inset 0 0 20px rgba(255,255,255,0.5);
+            display: flex;
+            flex-direction: row; /* Landscape layout */
+            overflow: hidden;
+            transition: all 0.5s ease;
+        }
+
+        /* Holopaper Texture Overlay */
+        #device-shell::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url('data:image/svg+xml;utf8,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)" opacity="0.05"/%3E%3C/svg%3E');
+            pointer-events: none;
+            z-index: 2;
+            mix-blend-mode: multiply;
+        }
+
+        /* Colored Filter Overlay (Simulates folding layers) */
+        #filter-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--filter-tint);
+            pointer-events: none;
+            z-index: 5;
+            transition: background-color 0.4s ease;
+            mix-blend-mode: color;
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            cursor: crosshair;
+            z-index: 3;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #controls-sidebar {
+            width: 180px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-right: 1px solid var(--glass-border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            box-shadow: 10px 0 20px rgba(0,0,0,0.05);
+        }
+
+        .d-pad {
+            position: relative;
+            width: 140px;
+            height: 140px;
+        }
+
+        .btn {
+            position: absolute;
+            width: 44px; height: 44px;
+            border-radius: 8px; /* Slightly diamond/squarish */
+            background: var(--glass-bg);
+            border: 2px solid var(--glass-border);
+            color: #333;
+            font-size: 1.2rem;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+            transform: rotate(45deg); /* Diamond shape layout */
+        }
+        
+        .btn span { transform: rotate(-45deg); /* Keep text upright */ }
+        .btn:active { transform: rotate(45deg) scale(0.9); }
+
+        /* Positioning the D-Pad */
+        .btn-top { top: 0; left: 48px; border-color: var(--color-heart); color: var(--color-heart); }
+        .btn-left { top: 48px; left: 0; border-color: var(--color-diamond); color: var(--color-diamond); }
+        .btn-right { top: 48px; right: 0; border-color: var(--color-club); color: var(--color-club); }
+        .btn-bottom { bottom: 0; left: 48px; border-color: var(--color-spade); color: var(--color-spade); }
+        .btn-center { 
+            top: 48px; left: 48px; 
+            background: rgba(255,255,255,0.5); 
+            border-color: #555; color: #555;
+            border-radius: 50%;
+        }
+
+        /* Active Button Glow */
+        .btn.active {
+            box-shadow: 0 0 15px currentColor;
+            background: currentColor;
+        }
+        .btn.active span { color: white; text-shadow: 0 0 2px black; }
+        .btn-center.active span { color: black; }
+
+        .sidebar-title {
+            position: absolute;
+            top: 20px;
+            font-weight: bold;
+            color: #555;
+            letter-spacing: 2px;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        
+        .layer-info {
+            position: absolute;
+            bottom: 20px;
+            font-size: 0.7rem;
+            color: #666;
+            text-align: center;
+            padding: 0 10px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="device-shell">
+        <div id="filter-overlay"></div>
+        
+        <!-- Controls Sidebar -->
+        <div id="controls-sidebar">
+            <div class="sidebar-title">STARWEBER<br><span style="font-size:0.6rem; font-weight:normal;">MEMBRANIX OS</span></div>
+            
+            <div class="d-pad">
+                <!-- ♥️ Top: Bio/Tamagotchi Layer -->
+                <div class="btn btn-top" onclick="setLayer('heart', 'var(--color-heart)')" id="btn-heart"><span>♥️</span></div>
+                <!-- ♦️ Left: Tech/Structure Layer -->
+                <div class="btn btn-left" onclick="setLayer('diamond', 'var(--color-diamond)')" id="btn-diamond"><span>♦️</span></div>
+                <!-- ❌ Center: Reset/Hub -->
+                <div class="btn btn-center active" onclick="setLayer('x', 'var(--color-x)')" id="btn-x"><span>❌</span></div>
+                <!-- ♣️ Right: Eco/Recycling Layer -->
+                <div class="btn btn-right" onclick="setLayer('club', 'var(--color-club)')" id="btn-club"><span>♣️</span></div>
+                <!-- ♠️ Bottom: Data/Network Layer -->
+                <div class="btn btn-bottom" onclick="setLayer('spade', 'var(--color-spade)')" id="btn-spade"><span>♠️</span></div>
+            </div>
+
+            <div class="layer-info" id="layer-info">
+                Active Layer: MULTI-VIEW<br><br>
+                Draw: Drag on grid.<br>
+                Ping: Tap intersection.
+            </div>
+        </div>
+
+        <!-- Canvas Area -->
+        <div id="canvas-container">
+            <!-- Background static grid -->
+            <canvas id="grid-canvas" style="position: absolute; z-index: 1; pointer-events: none;"></canvas>
+            <!-- Dynamic drawing canvas -->
+            <canvas id="draw-canvas" style="position: absolute; z-index: 2;"></canvas>
+            <!-- Ping animation canvas -->
+            <canvas id="ping-canvas" style="position: absolute; z-index: 3; pointer-events: none;"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const gridCanvas = document.getElementById('grid-canvas');
+        const gridCtx = gridCanvas.getContext('2d');
+        const drawCanvas = document.getElementById('draw-canvas');
+        const drawCtx = drawCanvas.getContext('2d');
+        const pingCanvas = document.getElementById('ping-canvas');
+        const pingCtx = pingCanvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+
+        const GRID_SIZE = 40; // Size of the small graph paper squares
+        let width, height;
+        
+        // Data structure to hold lines for different layers
+        const layers = {
+            'heart': [],
+            'diamond': [],
+            'club': [],
+            'spade': [],
+            'x': [] // X acts as universal or base layer, though mostly used to view all.
+        };
+        let currentLayer = 'x';
+        let drawingColor = '#555555';
+
+        // Pings (Eco-Signals)
+        let pings = [];
+
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            
+            // Setup all canvases
+            [gridCanvas, drawCanvas, pingCanvas].forEach(c => {
+                c.width = width;
+                c.height = height;
+            });
+            
+            drawBackgroundGrid();
+            renderAllLines();
+        }
+
+        window.addEventListener('resize', resize);
+
+        function drawBackgroundGrid() {
+            gridCtx.clearRect(0, 0, width, height);
+            
+            // 1. Draw fine Graph Paper (Karo)
+            gridCtx.strokeStyle = 'rgba(150, 160, 170, 0.2)';
+            gridCtx.lineWidth = 1;
+            
+            gridCtx.beginPath();
+            for (let x = 0; x <= width; x += GRID_SIZE) {
+                gridCtx.moveTo(x, 0); gridCtx.lineTo(x, height);
+            }
+            for (let y = 0; y <= height; y += GRID_SIZE) {
+                gridCtx.moveTo(0, y); gridCtx.lineTo(width, y);
+            }
+            gridCtx.stroke();
+
+            // 2. Draw thick Diamond/Diagonal Grid
+            gridCtx.strokeStyle = 'rgba(150, 160, 170, 0.15)';
+            gridCtx.lineWidth = 2;
+            gridCtx.beginPath();
+            
+            // Diagonals /
+            for (let i = -height; i < width; i += GRID_SIZE * 2) {
+                gridCtx.moveTo(i, 0); gridCtx.lineTo(i + height, height);
+            }
+            // Diagonals \
+            for (let i = 0; i < width + height; i += GRID_SIZE * 2) {
+                gridCtx.moveTo(i, 0); gridCtx.lineTo(i - height, height);
+            }
+            gridCtx.stroke();
+        }
+
+        function setLayer(layerName, colorVar) {
+            currentLayer = layerName;
+            
+            // Update UI Buttons
+            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${layerName}`).classList.add('active');
+
+            // Set drawing color based on CSS variable
+            const style = getComputedStyle(document.body);
+            drawingColor = style.getPropertyValue(colorVar.replace('var(', '').replace(')', '')).trim();
+
+            // Apply "Membranix Folding" Screen Tint
+            const root = document.documentElement;
+            const info = document.getElementById('layer-info');
+            
+            if (layerName === 'x') {
+                root.style.setProperty('--filter-tint', 'rgba(255, 255, 255, 0)');
+                info.innerHTML = "Active Layer: MULTI-VIEW<br><br>Viewing all layers.<br>Draw to base.";
+                drawingColor = '#555555';
+            } else {
+                // Creates a subtle tint over the screen like colored translucent plastic
+                let tint = drawingColor.replace('rgb', 'rgba').replace(')', ', 0.1)'); 
+                if(drawingColor.startsWith('#')) {
+                    // Hex to rgba hack for simple colors
+                    tint = drawingColor + '1A'; // 10% opacity hex
+                }
+                root.style.setProperty('--filter-tint', tint);
+                info.innerHTML = `Active Layer: ${layerName.toUpperCase()}<br><br>Drawing triangles on this frequency.`;
+            }
+
+            renderAllLines();
+        }
+
+        let isDrawing = false;
+        let lastSnap = null;
+
+        function getSnappedPos(clientX, clientY) {
+            const rect = drawCanvas.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            
+            // Snap to grid intersections
+            const snapX = Math.round(x / GRID_SIZE) * GRID_SIZE;
+            const snapY = Math.round(y / GRID_SIZE) * GRID_SIZE;
+            return { x: snapX, y: snapY };
+        }
+
+        function startDraw(e) {
+            isDrawing = true;
+            const pos = getSnappedPos(e.clientX || e.touches[0].clientX, e.clientY || e.touches[0].clientY);
+            lastSnap = pos;
+            
+            // Add an Eco-Ping on tap
+            addPing(pos.x, pos.y, drawingColor);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const pos = getSnappedPos(e.clientX || e.touches[0].clientX, e.clientY || e.touches[0].clientY);
+            
+            // Only draw if we moved to a new snap point
+            if (pos.x !== lastSnap.x || pos.y !== lastSnap.y) {
+                // Enforce 8-way directional drawing (orthogonals + diagonals) to match sketch
+                const dx = Math.abs(pos.x - lastSnap.x);
+                const dy = Math.abs(pos.y - lastSnap.y);
+                
+                if ((dx === GRID_SIZE && dy === 0) || 
+                    (dy === GRID_SIZE && dx === 0) || 
+                    (dx === GRID_SIZE && dy === GRID_SIZE)) {
+                    
+                    // Save line to current layer
+                    const targetLayer = currentLayer === 'x' ? 'x' : currentLayer;
+                    layers[targetLayer].push({
+                        x1: lastSnap.x, y1: lastSnap.y,
+                        x2: pos.x, y2: pos.y,
+                        color: drawingColor
+                    });
+                    
+                    lastSnap = pos;
+                    renderAllLines();
+                } else if (dx > GRID_SIZE || dy > GRID_SIZE) {
+                    // If moved too fast, just update lastSnap to catch up without drawing long weird lines
+                    lastSnap = pos;
+                }
+            }
+        }
+
+        function endDraw() {
+            isDrawing = false;
+            lastSnap = null;
+        }
+
+        drawCanvas.addEventListener('mousedown', startDraw);
+        drawCanvas.addEventListener('mousemove', draw);
+        window.addEventListener('mouseup', endDraw);
+        
+        drawCanvas.addEventListener('touchstart', startDraw, {passive: false});
+        drawCanvas.addEventListener('touchmove', draw, {passive: false});
+        window.addEventListener('touchend', endDraw);
+
+        function renderAllLines() {
+            drawCtx.clearRect(0, 0, width, height);
+            
+            // If we are on 'x' (Multi-view), render everything
+            // If on a specific layer, render only that layer clearly, others ghosted
+            
+            for (const [layerName, lines] of Object.entries(layers)) {
+                
+                let alpha = 1;
+                let isGhost = false;
+
+                if (currentLayer !== 'x' && currentLayer !== layerName) {
+                    alpha = 0.1; // Ghost other layers
+                    isGhost = true;
+                }
+
+                drawCtx.lineCap = 'round';
+                
+                lines.forEach(line => {
+                    drawCtx.beginPath();
+                    drawCtx.moveTo(line.x1, line.y1);
+                    drawCtx.lineTo(line.x2, line.y2);
+                    
+                    // Style
+                    drawCtx.lineWidth = isGhost ? 2 : 4;
+                    drawCtx.strokeStyle = isGhost ? `rgba(150,150,150, ${alpha})` : line.color;
+                    
+                    // Glow effect for active layer
+                    if (!isGhost && currentLayer !== 'x') {
+                        drawCtx.shadowBlur = 10;
+                        drawCtx.shadowColor = line.color;
+                    } else {
+                        drawCtx.shadowBlur = 0;
+                    }
+                    
+                    drawCtx.stroke();
+                });
+            }
+        }
+
+        function addPing(x, y, color) {
+            pings.push({ x, y, color, radius: 0, maxRadius: GRID_SIZE * 2.5, alpha: 1 });
+        }
+
+        function animatePings() {
+            pingCtx.clearRect(0, 0, width, height);
+            
+            for (let i = pings.length - 1; i >= 0; i--) {
+                let p = pings[i];
+                p.radius += 1;
+                p.alpha -= 0.02;
+                
+                if (p.alpha <= 0) {
+                    pings.splice(i, 1);
+                    continue;
+                }
+                
+                pingCtx.beginPath();
+                pingCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                pingCtx.strokeStyle = p.color;
+                pingCtx.globalAlpha = p.alpha;
+                pingCtx.lineWidth = 2;
+                pingCtx.stroke();
+
+                // Inner circle for the sketch look
+                pingCtx.beginPath();
+                pingCtx.arc(p.x, p.y, p.radius * 0.4, 0, Math.PI * 2);
+                pingCtx.stroke();
+            }
+            
+            pingCtx.globalAlpha = 1; // reset
+            requestAnimationFrame(animatePings);
+        }
+
+        // Init
+        resize();
+        animatePings();
+        
+        // Add some pre-drawn dummy lines to simulate the sketch on load
+        setTimeout(() => {
+            const centerX = Math.floor(width / 2 / GRID_SIZE) * GRID_SIZE;
+            const centerY = Math.floor(height / 2 / GRID_SIZE) * GRID_SIZE;
+            
+            // Draw a basic diamond in the center
+            layers['x'].push(
+                {x1: centerX, y1: centerY - GRID_SIZE*2, x2: centerX + GRID_SIZE*2, y2: centerY, color: '#555'},
+                {x1: centerX + GRID_SIZE*2, y1: centerY, x2: centerX, y2: centerY + GRID_SIZE*2, color: '#555'},
+                {x1: centerX, y1: centerY + GRID_SIZE*2, x2: centerX - GRID_SIZE*2, y2: centerY, color: '#555'},
+                {x1: centerX - GRID_SIZE*2, y1: centerY, x2: centerX, y2: centerY - GRID_SIZE*2, color: '#555'},
+                // Inner cross
+                {x1: centerX - GRID_SIZE*2, y1: centerY, x2: centerX + GRID_SIZE*2, y2: centerY, color: '#555'},
+                {x1: centerX, y1: centerY - GRID_SIZE*2, x2: centerX, y2: centerY + GRID_SIZE*2, color: '#555'}
+            );
+            renderAllLines();
+        }, 100);
+
+    </script>
+</body>
+</html>
