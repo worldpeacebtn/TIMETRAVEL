@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Crucial for mobile app feel: disables zoom and scaling -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>STARWEBER: Creator Suite & Holopaper</title>
+    <!-- Three.js for Quantic Liquid Background -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            /* Theme & Skat Colors */
+            --color-heart: #ff4b72;   /* ♥️ Herz (Bio/Love) */
+            --color-diamond: #00e5ff; /* ♦️ Schellen/Karo (Tech/Structure) */
+            --color-club: #00ff7f;    /* ♣️ Eichel/Kreuz (Eco/Nature) */
+            --color-spade: #9d4edd;   /* ♠️ Grün/Pik (Data/Network) */
+            --color-x: #ffffff;       /* ❌ Hub/Quantic Core */
+
+            --glass-bg: rgba(20, 25, 35, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --glass-highlight: rgba(255, 255, 255, 0.1);
+            
+            --filter-tint: rgba(255, 255, 255, 0);
+            --ui-size: 220px;
+        }
+
+        /* Reset & Anti-Mobile-Zoom */
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        
+        body, html {
+            width: 100%; height: 100%;
+            background-color: #050508;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            touch-action: none; /* Prevents pull-to-refresh & pinch zoom */
+        }
+
+        /* 3D Background Canvas */
+        #quantic-stage {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Main Shell */
+        #device-shell {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: row; /* Default layout */
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            z-index: 1;
+        }
+
+        /* Layout Modifiers (Settings Toggle) */
+        #device-shell.pos-left { flex-direction: row; }
+        #device-shell.pos-right { flex-direction: row-reverse; }
+        #device-shell.pos-top { flex-direction: column; }
+        #device-shell.pos-bottom { flex-direction: column-reverse; }
+
+        /* Filter Overlay (Matryoshka Peel) */
+        #filter-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--filter-tint);
+            pointer-events: none;
+            z-index: 5;
+            transition: background-color 0.5s ease;
+            mix-blend-mode: color;
+        }
+
+        /* Canvas Drawing Area */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            cursor: crosshair;
+            z-index: 3;
+            /* Holopaper Texture */
+            background-image: 
+                url('data:image/svg+xml;utf8,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)" opacity="0.03"/%3E%3C/svg%3E');
+        }
+
+        canvas.layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: block;
+        }
+
+        /* HUD Sidebar */
+        #controls-sidebar {
+            width: var(--ui-size);
+            min-width: var(--ui-size);
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 5px;
+            z-index: 10;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+
+        /* Adjust HUD for Top/Bottom layouts */
+        #device-shell.pos-top #controls-sidebar,
+        #device-shell.pos-bottom #controls-sidebar {
+            width: 100%; min-width: 100%;
+            height: 120px; min-height: 120px;
+            flex-direction: row;
+            padding: 5px 20px;
+        }
+
+        /* D-PAD Configuration */
+        .d-pad-container {
+            position: relative;
+            width: 140px; height: 140px;
+            transform: scale(0.9);
+        }
+
+        .btn {
+            position: absolute;
+            width: 46px; height: 46px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid var(--glass-border);
+            color: #888;
+            font-size: 1.4rem;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 0 4px 10px rgba(0,0,0,0.2);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: rotate(45deg);
+        }
+        
+        .btn span { transform: rotate(-45deg); pointer-events: none; }
+        .btn:active { transform: rotate(45deg) scale(0.85); }
+        .btn.active { box-shadow: 0 0 20px currentColor, inset 0 0 10px currentColor; background: rgba(255,255,255,0.1); }
+        .btn.active span { color: #fff; text-shadow: 0 0 5px black; }
+
+        .btn-top { top: 0; left: 47px; border-color: var(--color-heart); color: var(--color-heart); }
+        .btn-left { top: 47px; left: 0; border-color: var(--color-diamond); color: var(--color-diamond); }
+        .btn-right { top: 47px; right: 0; border-color: var(--color-club); color: var(--color-club); }
+        .btn-bottom { bottom: 0; left: 47px; border-color: var(--color-spade); color: var(--color-spade); }
+        .btn-center { top: 47px; left: 47px; border-radius: 50%; background: var(--glass-highlight); border-color: var(--color-x); color: var(--color-x); }
+
+        /* HUD Information Panel */
+        .info-panel {
+            text-align: center;
+            font-size: 0.65rem;
+            color: #aaa;
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            width: 90%;
+        }
+        .info-panel h3 { font-size: 0.8rem; color: #fff; letter-spacing: 1px; margin-bottom: 5px; }
+        .info-panel .skat-name { font-weight: bold; font-style: italic; color: #ddd; }
+
+        /* Top/Bottom Layout adjustments for info panel */
+        #device-shell.pos-top .info-panel, #device-shell.pos-bottom .info-panel { width: auto; max-width: 250px; }
+
+        /* Action Buttons Row */
+        .action-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .action-btn {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .action-btn:active { background: rgba(255,255,255,0.2); }
+
+        /* Matryoshka Peel Slider */
+        .slider-container {
+            width: 90%;
+            display: flex; flex-direction: column; align-items: center;
+            font-size: 0.6rem; color: #888; margin-top: 10px;
+        }
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; background: transparent; margin-top: 5px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #fff; cursor: pointer; margin-top: -6px; box-shadow: 0 0 5px #fff;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: var(--glass-border); border-radius: 2px;
+        }
+
+        /* --- CREATOR SUITE TIMELINE (Blender Style) --- */
+        #creator-suite {
+            position: absolute;
+            bottom: -300px; /* Hidden initially */
+            left: 0; right: 0;
+            height: 250px;
+            background: rgba(10, 12, 18, 0.85);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--color-x);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+            z-index: 20;
+            transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; flex-direction: column;
+            color: #aaa; font-size: 0.7rem;
+        }
+        #creator-suite.open { bottom: 0; }
+
+        .suite-header {
+            display: flex; justify-content: space-between; padding: 5px 15px;
+            background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--glass-border);
+        }
+        .timeline-container {
+            flex-grow: 1; overflow-y: auto; overflow-x: hidden; padding: 10px;
+            display: flex; flex-direction: column; gap: 5px;
+        }
+        .timeline-track {
+            display: flex; align-items: center; height: 30px;
+            background: rgba(0,0,0,0.5); border-radius: 5px; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .track-label { width: 100px; padding-left: 10px; border-right: 1px solid rgba(255,255,255,0.1); font-weight: bold;}
+        .track-area { flex-grow: 1; position: relative; background: repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(255,255,255,0.05) 50px); }
+        .keyframe {
+            position: absolute; width: 8px; height: 8px; transform: rotate(45deg);
+            background: #fff; top: 10px; box-shadow: 0 0 5px #fff;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- 1. Quantic Liquid Background (Three.js Stage) -->
+    <canvas id="quantic-stage"></canvas>
+
+    <!-- 2. Main App Shell -->
+    <div id="device-shell" class="pos-left">
+        <div id="filter-overlay"></div>
+        
+        <!-- HUD / Sidebar -->
+        <div id="controls-sidebar">
+            <div class="info-panel" id="layer-info">
+                <h3>STARWEBER OS</h3>
+                <span class="skat-name">Layer: MULTI-VIEW (❌)</span><br><br>
+                <span>Draw on Holopaper.<br>Quantic Hub Active.</span>
+            </div>
+            
+            <!-- SKAT D-PAD -->
+            <div class="d-pad-container">
+                <div class="btn btn-top" onclick="setLayer('heart', 'var(--color-heart)')" id="btn-heart"><span>♥️</span></div>
+                <div class="btn btn-left" onclick="setLayer('diamond', 'var(--color-diamond)')" id="btn-diamond"><span>♦️</span></div>
+                <div class="btn btn-center active" onclick="setLayer('x', 'var(--color-x)')" id="btn-x"><span>❌</span></div>
+                <div class="btn btn-right" onclick="setLayer('club', 'var(--color-club)')" id="btn-club"><span>♣️</span></div>
+                <div class="btn btn-bottom" onclick="setLayer('spade', 'var(--color-spade)')" id="btn-spade"><span>♠️</span></div>
+            </div>
+
+            <!-- Matryoshka Transparency Slider -->
+            <div class="slider-container">
+                <label>Matryoshka Peel (Opacity)</label>
+                <input type="range" id="peel-slider" min="0" max="100" value="100" oninput="updatePeel(this.value)">
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-row">
+                <button class="action-btn" onclick="toggleLayout()">⚙️ HUD</button>
+                <button class="action-btn" onclick="toggleCreatorSuite()">🎬 Creator</button>
+                <button class="action-btn" onclick="downloadBlueprint()">💾 Export</button>
+            </div>
+        </div>
+
+        <!-- Drawing Canvas Area -->
+        <div id="canvas-container">
+            <canvas id="grid-canvas" class="layer" style="z-index: 1; pointer-events: none;"></canvas>
+            <canvas id="draw-canvas" class="layer" style="z-index: 2;"></canvas>
+            <canvas id="ping-canvas" class="layer" style="z-index: 3; pointer-events: none;"></canvas>
+        </div>
+    </div>
+
+    <!-- 3. Creator Suite Timeline Panel -->
+    <div id="creator-suite">
+        <div class="suite-header">
+            <span><b>Indigenous Creator Suite</b> - v0.9 (Stage Mode)</span>
+            <span style="cursor:pointer;" onclick="toggleCreatorSuite()">▼ CLOSE</span>
+        </div>
+        <div class="timeline-container">
+            <!-- Mock Timeline Tracks -->
+            <div class="timeline-track"><div class="track-label" style="color:var(--color-heart)">♥️ Herz/Bio</div><div class="track-area"><div class="keyframe" style="left:50px; background:var(--color-heart)"></div><div class="keyframe" style="left:200px; background:var(--color-heart)"></div></div></div>
+            <div class="timeline-track"><div class="track-label" style="color:var(--color-diamond)">♦️ Karo/Tech</div><div class="track-area"><div class="keyframe" style="left:100px; background:var(--color-diamond)"></div></div></div>
+            <div class="timeline-track"><div class="track-label" style="color:var(--color-club)">♣️ Eichel/Eco</div><div class="track-area"><div class="keyframe" style="left:150px; background:var(--color-club)"></div><div class="keyframe" style="left:350px; background:var(--color-club)"></div></div></div>
+            <div class="timeline-track"><div class="track-label" style="color:var(--color-spade)">♠️ Grün/Data</div><div class="track-area"><div class="keyframe" style="left:300px; background:var(--color-spade)"></div></div></div>
+            <div class="timeline-track"><div class="track-label" style="color:#fff">Camera (X,Y,Z)</div><div class="track-area"><div class="keyframe" style="left:20px;"></div><div class="keyframe" style="left:250px;"></div></div></div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. DATA & LORE CONFIG
+        // ==========================================
+        const layerData = {
+            'heart': { name: '♥️ Herz (Bio/Love)', desc: 'Organic growth patterns, Tamagotchi health monitoring.', color: '#ff4b72' },
+            'diamond': { name: '♦️ Schellen (Tech/Struct)', desc: 'Architectural grids, structural integrity, UI logic.', color: '#00e5ff' },
+            'club': { name: '♣️ Eichel (Eco/Nature)', desc: 'Green tech, habitat lab, algae nano signals.', color: '#00ff7f' },
+            'spade': { name: '♠️ Grün (Data/Network)', desc: 'Neuronal co-op sys, AI helpers, data streams.', color: '#9d4edd' },
+            'x': { name: '❌ X-Hub (Quantic Core)', desc: 'Multi-view. All layers visible. Base holopaper.', color: '#ffffff' }
+        };
+
+        const layers = { 'heart': [], 'diamond': [], 'club': [], 'spade': [], 'x': [] };
+        let currentLayer = 'x';
+        let drawingColor = '#ffffff';
+
+        // ==========================================
+        // 2. UI CONTROLS & LOGIC
+        // ==========================================
+        const layouts = ['pos-left', 'pos-right', 'pos-bottom', 'pos-top'];
+        let curLayout = 0;
+        
+        function toggleLayout() {
+            const shell = document.getElementById('device-shell');
+            shell.classList.remove(...layouts);
+            curLayout = (curLayout + 1) % layouts.length;
+            shell.classList.add(layouts[curLayout]);
+            // Force redraw after CSS transition completes to fix canvas scaling
+            setTimeout(resizeCanvas, 450); 
+        }
+
+        function toggleCreatorSuite() {
+            document.getElementById('creator-suite').classList.toggle('open');
+        }
+
+        function updatePeel(val) {
+            // Adjust opacity of the drawing canvas to "peel" back the matryoshka layer
+            document.getElementById('draw-canvas').style.opacity = val / 100;
+            document.getElementById('grid-canvas').style.opacity = (val / 100) * 0.5; // Grid fades faster
+        }
+
+        function setLayer(layerId, colorVar) {
+            currentLayer = layerId;
+            
+            // UI Button Active State
+            document.querySelectorAll('.d-pad-container .btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${layerId}`).classList.add('active');
+
+            // Update Lore Info
+            const info = document.getElementById('layer-info');
+            info.innerHTML = `
+                <h3>STARWEBER OS</h3>
+                <span class="skat-name">${layerData[layerId].name}</span><br><br>
+                <span>${layerData[layerId].desc}</span>
+            `;
+
+            // Set Color
+            drawingColor = layerData[layerId].color;
+
+            // Apply Membranix Tint
+            const root = document.documentElement;
+            if (layerId === 'x') {
+                root.style.setProperty('--filter-tint', 'rgba(255, 255, 255, 0)');
+                drawingColor = '#aaaaaa';
+            } else {
+                root.style.setProperty('--filter-tint', drawingColor + '1A'); // 10% opacity hex
+            }
+
+            // Tell Three.js background to shift color
+            updateQuanticColor(drawingColor);
+            renderAllLines();
+        }
+
+        // ==========================================
+        // 3. CANVAS 2D DRAWING ENGINE (Holopaper)
+        // ==========================================
+        const container = document.getElementById('canvas-container');
+        const gridCanvas = document.getElementById('grid-canvas');
+        const drawCanvas = document.getElementById('draw-canvas');
+        const pingCanvas = document.getElementById('ping-canvas');
+        
+        const gridCtx = gridCanvas.getContext('2d');
+        const drawCtx = drawCanvas.getContext('2d');
+        const pingCtx = pingCanvas.getContext('2d');
+
+        const GRID_SIZE = 40;
+        let width, height;
+        let pings = [];
+        let isDrawing = false;
+        let lastSnap = null;
+
+        function resizeCanvas() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            
+            [gridCanvas, drawCanvas, pingCanvas].forEach(c => {
+                c.width = width; c.height = height;
+            });
+            
+            drawBackgroundGrid();
+            renderAllLines();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawBackgroundGrid() {
+            gridCtx.clearRect(0, 0, width, height);
+            gridCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            gridCtx.lineWidth = 1;
+            
+            // Orthogonal Graph (Karo)
+            gridCtx.beginPath();
+            for (let x = 0; x <= width; x += GRID_SIZE) { gridCtx.moveTo(x, 0); gridCtx.lineTo(x, height); }
+            for (let y = 0; y <= height; y += GRID_SIZE) { gridCtx.moveTo(0, y); gridCtx.lineTo(width, y); }
+            gridCtx.stroke();
+
+            // Diagonal Diamonds
+            gridCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            gridCtx.lineWidth = 2;
+            gridCtx.beginPath();
+            for (let i = -height; i < width; i += GRID_SIZE * 2) { gridCtx.moveTo(i, 0); gridCtx.lineTo(i + height, height); }
+            for (let i = 0; i < width + height; i += GRID_SIZE * 2) { gridCtx.moveTo(i, 0); gridCtx.lineTo(i - height, height); }
+            gridCtx.stroke();
+        }
+
+        function getSnappedPos(clientX, clientY) {
+            const rect = drawCanvas.getBoundingClientRect();
+            return {
+                x: Math.round((clientX - rect.left) / GRID_SIZE) * GRID_SIZE,
+                y: Math.round((clientY - rect.top) / GRID_SIZE) * GRID_SIZE
+            };
+        }
+
+        function startDraw(e) {
+            e.preventDefault(); // Stop mobile scroll
+            isDrawing = true;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            lastSnap = getSnappedPos(clientX, clientY);
+            addPing(lastSnap.x, lastSnap.y, drawingColor);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const pos = getSnappedPos(clientX, clientY);
+            
+            if (pos.x !== lastSnap.x || pos.y !== lastSnap.y) {
+                const dx = Math.abs(pos.x - lastSnap.x);
+                const dy = Math.abs(pos.y - lastSnap.y);
+                
+                // Allow only 8-way geometric drawing (1 grid unit at a time)
+                if ((dx === GRID_SIZE && dy === 0) || (dy === GRID_SIZE && dx === 0) || (dx === GRID_SIZE && dy === GRID_SIZE)) {
+                    layers[currentLayer].push({ x1: lastSnap.x, y1: lastSnap.y, x2: pos.x, y2: pos.y, color: drawingColor });
+                    lastSnap = pos;
+                    renderAllLines();
+                } else if (dx > GRID_SIZE || dy > GRID_SIZE) {
+                    lastSnap = pos; // Catch up if moved too fast
+                }
+            }
+        }
+
+        function endDraw() { isDrawing = false; lastSnap = null; }
+
+        drawCanvas.addEventListener('mousedown', startDraw);
+        drawCanvas.addEventListener('mousemove', draw);
+        window.addEventListener('mouseup', endDraw);
+        
+        drawCanvas.addEventListener('touchstart', startDraw, {passive: false});
+        drawCanvas.addEventListener('touchmove', draw, {passive: false});
+        window.addEventListener('touchend', endDraw);
+
+        function renderAllLines() {
+            drawCtx.clearRect(0, 0, width, height);
+            drawCtx.lineCap = 'round';
+            
+            for (const [layerName, lines] of Object.entries(layers)) {
+                let alpha = 1; let isGhost = false;
+
+                if (currentLayer !== 'x' && currentLayer !== layerName) {
+                    alpha = 0.15; isGhost = true;
+                }
+
+                lines.forEach(line => {
+                    drawCtx.beginPath();
+                    drawCtx.moveTo(line.x1, line.y1); drawCtx.lineTo(line.x2, line.y2);
+                    drawCtx.lineWidth = isGhost ? 2 : 5;
+                    drawCtx.strokeStyle = isGhost ? `rgba(150,150,150, ${alpha})` : line.color;
+                    
+                    if (!isGhost && currentLayer !== 'x') {
+                        drawCtx.shadowBlur = 15; drawCtx.shadowColor = line.color;
+                    } else {
+                        drawCtx.shadowBlur = 0;
+                    }
+                    drawCtx.stroke();
+                });
+            }
+        }
+
+        function addPing(x, y, color) { pings.push({ x, y, color, r: 0, alpha: 1 }); }
+
+        function animatePings() {
+            pingCtx.clearRect(0, 0, width, height);
+            for (let i = pings.length - 1; i >= 0; i--) {
+                let p = pings[i];
+                p.r += 1.5; p.alpha -= 0.03;
+                if (p.alpha <= 0) { pings.splice(i, 1); continue; }
+                
+                pingCtx.beginPath();
+                pingCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                pingCtx.strokeStyle = p.color;
+                pingCtx.globalAlpha = p.alpha;
+                pingCtx.lineWidth = 2;
+                pingCtx.stroke();
+            }
+            pingCtx.globalAlpha = 1;
+            requestAnimationFrame(animatePings);
+        }
+
+        // Export functionality
+        function downloadBlueprint() {
+            // Create a temporary canvas to merge grid and drawings with a dark background
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = width; exportCanvas.height = height;
+            const ctx = exportCanvas.getContext('2d');
+            
+            // Draw background
+            ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, width, height);
+            // Draw Grid
+            ctx.drawImage(gridCanvas, 0, 0);
+            // Draw Lines
+            ctx.drawImage(drawCanvas, 0, 0);
+
+            const link = document.createElement('a');
+            link.download = 'STARWEBER_Blueprint.png';
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+
+        // ==========================================
+        // 4. THREE.JS (Quantic Liquid Stage)
+        // ==========================================
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('quantic-stage'), alpha: true, antialias: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        const particles = new THREE.Group();
+        scene.add(particles);
+
+        // Spheric Atom / Bubble Gum / Liquid Nano geometry
+        const geoSpheres = new THREE.IcosahedronGeometry(0.6, 1); 
+        let meshMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0xffffff,
+            transmission: 0.9,
+            opacity: 1,
+            metalness: 0.5,
+            roughness: 0.1,
+            ior: 1.5,
+            thickness: 0.5,
+            envMapIntensity: 1
+        });
+
+        // Add 60 floating interconnected liquid nodes
+        for (let i = 0; i < 60; i++) {
+            const mesh = new THREE.Mesh(geoSpheres, meshMaterial);
+            mesh.position.set((Math.random() - 0.5) * 30, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 15 - 5);
+            mesh.userData = {
+                velocity: new THREE.Vector3((Math.random() - 0.5)*0.02, (Math.random() - 0.5)*0.02, (Math.random() - 0.5)*0.02),
+                origin: mesh.position.clone()
+            };
+            particles.add(mesh);
+        }
+
+        const ambientLight = new THREE.AmbientLight(0x404040, 2); // Soft white light
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        camera.position.z = 10;
+
+        // Transition color smoothly
+        const targetColor = new THREE.Color(0xffffff);
+        function updateQuanticColor(hexStr) {
+            targetColor.set(hexStr);
+        }
+
+        function animateThreeJS() {
+            requestAnimationFrame(animateThreeJS);
+            
+            // Lerp color for smooth transition on layer switch
+            meshMaterial.color.lerp(targetColor, 0.05);
+
+            particles.children.forEach(p => {
+                p.position.add(p.userData.velocity);
+                p.rotation.x += 0.005; p.rotation.y += 0.005;
+                
+                // Keep them wandering around their origin
+                if (p.position.distanceTo(p.userData.origin) > 3) {
+                    p.userData.velocity.negate();
+                }
+            });
+            particles.rotation.y += 0.0005; // Slow global rotate
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ==========================================
+        // 5. INITIALIZATION
+        // ==========================================
+        resizeCanvas();
+        animatePings();
+        animateThreeJS();
+
+        // Draw an initial dummy shape (Skat Diamond logic) to simulate the paper loaded state
+        setTimeout(() => {
+            const cx = Math.floor(width / 2 / GRID_SIZE) * GRID_SIZE;
+            const cy = Math.floor(height / 2 / GRID_SIZE) * GRID_SIZE;
+            const gs = GRID_SIZE;
+            
+            layers['diamond'].push(
+                {x1: cx-gs*2, y1: cy, x2: cx, y2: cy-gs*2, color: layerData['diamond'].color},
+                {x1: cx, y1: cy-gs*2, x2: cx+gs*2, y2: cy, color: layerData['diamond'].color},
+                {x1: cx+gs*2, y1: cy, x2: cx, y2: cy+gs*2, color: layerData['diamond'].color},
+                {x1: cx, y1: cy+gs*2, x2: cx-gs*2, y2: cy, color: layerData['diamond'].color},
+                {x1: cx-gs*2, y1: cy, x2: cx+gs*2, y2: cy, color: layerData['diamond'].color}
+            );
+            layers['heart'].push({x1: cx, y1: cy, x2: cx, y2: cy-gs*2, color: layerData['heart'].color});
+            renderAllLines();
+        }, 300);
+
+    </script>
+</body>
+</html>
