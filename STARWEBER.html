@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>STARWEBER: ALLXSTARz Polly Pocket Holo Edition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            --theme-color: rgba(255, 105, 180, 0.6); /* Kawaii Pink Default */
+            --theme-glow: #ff69b4;
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.3);
+        }
+
+        body.green-tech {
+            --theme-color: rgba(0, 255, 127, 0.5); /* Algae Nano Green */
+            --theme-glow: #00ff7f;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background-color: #050510;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* 3D Background Canvas */
+        #bg-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+        }
+
+        /* Hochformat Mobile Device Container */
+        #starweber-device {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 450px;
+            max-height: 900px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 40px; /* Polly Pocket Soft Edges */
+            box-shadow: 0 0 30px var(--theme-color), inset 0 0 20px var(--theme-color);
+            overflow: hidden;
+            transition: all 0.5s ease;
+        }
+
+        /* Top Header */
+        header {
+            text-align: center;
+            padding: 15px;
+            border-bottom: 1px solid var(--glass-border);
+            background: rgba(0,0,0,0.2);
+        }
+        header h1 {
+            font-size: 1.2rem;
+            text-shadow: 0 0 5px var(--theme-glow);
+            letter-spacing: 2px;
+        }
+        header p {
+            font-size: 0.6rem;
+            opacity: 0.8;
+        }
+
+        /* Main Display Screen */
+        #main-screen {
+            flex-grow: 1;
+            position: relative;
+            margin: 15px;
+            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--glass-border);
+            overflow: hidden;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
+        }
+
+        .screen-mode {
+            display: none;
+            width: 100%;
+            height: 100%;
+            padding: 15px;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        .screen-mode.active { display: flex; }
+
+        /* Drawing Canvas (Grid Mode) */
+        #drawing-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            cursor: crosshair;
+        }
+        .grid-overlay {
+            background-image: linear-gradient(var(--glass-border) 1px, transparent 1px),
+            linear-gradient(90deg, var(--glass-border) 1px, transparent 1px);
+            background-size: 20px 20px;
+            width: 100%; height: 100%;
+            position: absolute;
+            top: 0; left: 0;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        /* Eco-Lab / Tamagotchi Mode */
+        .eco-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .stat-box {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid var(--theme-color);
+        }
+
+        /* D-Pad Controls Area */
+        #controls-area {
+            height: 220px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding-bottom: 20px;
+        }
+
+        /* Matryoshka Slider */
+        .slider-container {
+            width: 80%;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 0.7rem;
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px; width: 20px;
+            border-radius: 50%;
+            background: var(--theme-glow);
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--theme-glow);
+            margin-top: -8px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px;
+            background: var(--glass-border);
+            border-radius: 2px;
+        }
+
+        /* The D-Pad */
+        .d-pad {
+            position: relative;
+            width: 160px; height: 160px;
+        }
+        .btn {
+            position: absolute;
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            background: var(--glass-bg);
+            border: 2px solid var(--glass-border);
+            color: white;
+            font-size: 1.5rem;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: all 0.2s;
+            backdrop-filter: blur(5px);
+        }
+        .btn:active { transform: scale(0.9); background: var(--theme-color); }
+        
+        .btn-top { top: 0; left: 55px; }
+        .btn-left { top: 55px; left: 0; }
+        .btn-right { top: 55px; right: 0; }
+        .btn-bottom { bottom: 0; left: 55px; }
+        .btn-center { 
+            top: 55px; left: 55px; 
+            background: rgba(255,255,255,0.2); 
+            border-color: var(--theme-glow);
+            box-shadow: 0 0 15px var(--theme-color);
+        }
+
+        /* Media / Files Grid */
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .media-item {
+            aspect-ratio: 1;
+            background: rgba(255,255,255,0.2);
+            border-radius: 5px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 0.6rem;
+            text-align: center;
+        }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <div id="starweber-device">
+        
+        <header>
+            <h1>STARWEBER</h1>
+            <p>ALLXSTARz Polly Pocket Holo OS</p>
+        </header>
+
+        <div id="main-screen">
+            
+            <div id="mode-eco" class="screen-mode active">
+                <h2 style="text-align:center; color: var(--theme-glow);">Holo Eco-Lab</h2>
+                <div style="text-align:center; margin-top:10px; font-size:3rem;">🌱</div>
+                <p style="text-align:center; font-size:0.8rem; margin-top:5px;">Habitat Status: Optimal</p>
+                <div class="eco-stats">
+                    <div class="stat-box">O2 Output<br><b>98%</b></div>
+                    <div class="stat-box">Algae Nano<br><b>Stable</b></div>
+                    <div class="stat-box">Resources<br><b>1,240 XP</b></div>
+                    <div class="stat-box">Interspecies<br><b>Connected</b></div>
+                </div>
+            </div>
+
+            <div id="mode-media" class="screen-mode">
+                <h3 style="color: var(--theme-glow);">Universal Memory</h3>
+                <p style="font-size:0.7rem; margin-bottom: 10px;">Formats: GLB, MP4, HTML, HEVC</p>
+                <div class="media-grid">
+                    <div class="media-item">Holo.glb</div>
+                    <div class="media-item">Mem.mp4</div>
+                    <div class="media-item">Data.txt</div>
+                    <div class="media-item">React.js</div>
+                    <div class="media-item">Blueprint</div>
+                    <div class="media-item">Chat.log</div>
+                    <div class="media-item">Img.png</div>
+                    <div class="media-item">Audio.mp3</div>
+                    <div class="media-item">AR_Asset</div>
+                </div>
+            </div>
+
+            <div id="mode-coop" class="screen-mode">
+                <h3 style="color: var(--theme-glow);">Neuronal Co-op Sys</h3>
+                <ul style="list-style: none; margin-top: 15px; font-size: 0.9rem;">
+                    <li style="margin-bottom: 10px;">🟢 <b>User_Zero</b> - Assisting Refurbish</li>
+                    <li style="margin-bottom: 10px;">🟢 <b>AI_Helper_1</b> - Sorting Data</li>
+                    <li style="margin-bottom: 10px;">🟡 <b>Kiddos_Lab</b> - Building Habitat</li>
+                    <li style="margin-bottom: 10px;">🔴 <b>AR_Glass_01</b> - Offline</li>
+                </ul>
+            </div>
+
+            <div id="mode-draw" class="screen-mode">
+                <div class="grid-overlay"></div>
+                <canvas id="drawing-canvas"></canvas>
+                <div style="position:absolute; bottom:10px; left:10px; font-size:0.7rem; pointer-events:none;">
+                    Grid active. Draw Triangles.
+                </div>
+            </div>
+
+        </div>
+
+        <div id="controls-area">
+            
+            <div class="slider-container">
+                <label>Matryoshka Shell Layer (Unzip/Peel)</label>
+                <input type="range" id="shell-slider" min="1" max="100" value="100">
+            </div>
+
+            <div class="d-pad">
+                <div class="btn btn-top" onclick="switchMode('mode-eco')">♥️</div>
+                <div class="btn btn-left" onclick="switchMode('mode-media')">♦️</div>
+                <div class="btn btn-center" onclick="toggleTheme()">❌</div>
+                <div class="btn btn-right" onclick="switchMode('mode-coop')">♣️</div>
+                <div class="btn btn-bottom" onclick="switchMode('mode-draw')">♠️</div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. UI LOGIC & THEME SWITCHER
+        // ==========================================
+        function switchMode(modeId) {
+            // Hide all modes
+            document.querySelectorAll('.screen-mode').forEach(el => el.classList.remove('active'));
+            // Show selected mode
+            document.getElementById(modeId).classList.add('active');
+            
+            // If drawing mode, resize canvas to fit
+            if(modeId === 'mode-draw') {
+                resizeCanvas();
+            }
+        }
+
+        // ❌ Toggle between Kawaii Pink & Green Tech Algae
+        let isGreenTech = false;
+        function toggleTheme() {
+            const body = document.body;
+            isGreenTech = !isGreenTech;
+            if (isGreenTech) {
+                body.classList.add('green-tech');
+            } else {
+                body.classList.remove('green-tech');
+            }
+            updateThreeJSColors(); // Sync 3D background with theme
+        }
+
+        // Matryoshka Shell Slider (Simulates unzipping/transparency)
+        const slider = document.getElementById('shell-slider');
+        const device = document.getElementById('starweber-device');
+        slider.addEventListener('input', (e) => {
+            const val = e.target.value; // 1 to 100
+            // Map 100 to full blur/opacity, 1 to highly transparent
+            const blurVal = (val / 100) * 15;
+            const opacity = (val / 100) * 0.1;
+            device.style.backdropFilter = `blur(${blurVal}px)`;
+            device.style.webkitBackdropFilter = `blur(${blurVal}px)`;
+            device.style.background = `rgba(255, 255, 255, ${opacity})`;
+        });
+
+        // ==========================================
+        // 2. GRID DRAWING LOGIC (Triangles)
+        // ==========================================
+        const drawCanvas = document.getElementById('drawing-canvas');
+        const ctx = drawCanvas.getContext('2d');
+        let isDrawing = false;
+        let startX = 0;
+        let startY = 0;
+
+        function resizeCanvas() {
+            const rect = drawCanvas.parentElement.getBoundingClientRect();
+            drawCanvas.width = rect.width;
+            drawCanvas.height = rect.height;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Drawing Event Listeners (Mouse & Touch)
+        function startDraw(e) {
+            isDrawing = true;
+            const rect = drawCanvas.getBoundingClientRect();
+            startX = (e.clientX || e.touches[0].clientX) - rect.left;
+            startY = (e.clientY || e.touches[0].clientY) - rect.top;
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const rect = drawCanvas.getBoundingClientRect();
+            const currentX = (e.clientX || e.touches[0].clientX) - rect.left;
+            const currentY = (e.clientY || e.touches[0].clientY) - rect.top;
+
+            ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height); // Clear to show real-time shape
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(currentX, startY); // Draw horizontal base
+            ctx.lineTo((startX + currentX) / 2, currentY); // Draw to peak to make a triangle
+            ctx.closePath();
+
+            ctx.strokeStyle = isGreenTech ? '#00ff7f' : '#ff69b4';
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = ctx.strokeStyle;
+            ctx.stroke();
+            ctx.fillStyle = isGreenTech ? 'rgba(0,255,127,0.2)' : 'rgba(255,105,180,0.2)';
+            ctx.fill();
+        }
+
+        function endDraw() { isDrawing = false; }
+
+        drawCanvas.addEventListener('mousedown', startDraw);
+        drawCanvas.addEventListener('mousemove', draw);
+        drawCanvas.addEventListener('mouseup', endDraw);
+        drawCanvas.addEventListener('touchstart', startDraw);
+        drawCanvas.addEventListener('touchmove', draw);
+        drawCanvas.addEventListener('touchend', endDraw);
+
+        // ==========================================
+        // 3. THREE.JS QUANTIC LIQUID SIMULATION
+        // ==========================================
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bg-canvas'), alpha: true, antialias: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        // Create Spheres & Triangles (Polly Pocket / Liquid Tech vibe)
+        const particles = new THREE.Group();
+        scene.add(particles);
+
+        const geoSpheres = new THREE.IcosahedronGeometry(0.5, 0); // Poly/Triangle look
+        let meshMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0xff69b4,
+            transmission: 0.9,
+            opacity: 1,
+            metalness: 0.2,
+            roughness: 0.1,
+            ior: 1.5,
+            thickness: 0.1,
+            specularIntensity: 1,
+            side: THREE.DoubleSide
+        });
+
+        // Add 50 floating objects
+        for (let i = 0; i < 50; i++) {
+            const mesh = new THREE.Mesh(geoSpheres, meshMaterial);
+            mesh.position.x = (Math.random() - 0.5) * 20;
+            mesh.position.y = (Math.random() - 0.5) * 20;
+            mesh.position.z = (Math.random() - 0.5) * 10 - 5;
+            
+            mesh.rotation.x = Math.random() * 2 * Math.PI;
+            mesh.rotation.y = Math.random() * 2 * Math.PI;
+            
+            // Custom speeds for animation
+            mesh.userData = {
+                rx: (Math.random() - 0.5) * 0.02,
+                ry: (Math.random() - 0.5) * 0.02,
+                yMove: (Math.random() - 0.5) * 0.01
+            };
+            particles.add(mesh);
+        }
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(5, 5, 5);
+        scene.add(pointLight);
+
+        camera.position.z = 8;
+
+        // Sync colors when pressing ❌
+        function updateThreeJSColors() {
+            const newColor = isGreenTech ? 0x00ff7f : 0xff69b4;
+            meshMaterial.color.setHex(newColor);
+            // Redraw canvas if in draw mode
+            if(document.getElementById('mode-draw').classList.contains('active')) {
+                 ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+            }
+        }
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            particles.children.forEach(p => {
+                p.rotation.x += p.userData.rx;
+                p.rotation.y += p.userData.ry;
+                p.position.y += p.userData.yMove;
+                // Bounce effect
+                if (p.position.y > 10 || p.position.y < -10) p.userData.yMove *= -1;
+            });
+            particles.rotation.y += 0.001; // Slow global rotate
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle Window Resize for 3D Background
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+</html>
