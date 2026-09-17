@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>STARWEBER OS v4: Matroschka Brooch</title>
+    
+    <!-- Three.js & Loaders -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --color-heart: #ff2a5f;   
+            --color-club: #00ff7f;    
+            --color-spade: #4a0080; /* Dark Mirror */
+            --color-diamond: #00e5ff; 
+            --color-x: #ffffff;       
+            --bg-color: #030108;
+            --glass-bg: rgba(15, 10, 25, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --ui-glow: rgba(0, 229, 255, 0.5);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        body, html {
+            width: 100vw; height: 100vh; background-color: var(--bg-color);
+            overflow: hidden !important; overscroll-behavior: none;
+            font-family: 'Courier New', Courier, monospace; color: white;
+            touch-action: none;
+        }
+
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        
+        /* Absolute Edge UI */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 10; pointer-events: none;
+        }
+        .interactive { pointer-events: auto; }
+
+        /* Top HUD */
+        .hud-top {
+            position: absolute; top: 10px; left: 15px; right: 15px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+        }
+        .title-box { background: var(--glass-bg); padding: 10px 15px; border-radius: 12px; border: 1px solid var(--glass-border); backdrop-filter: blur(10px); }
+        .title-box h1 { font-size: 1.1rem; text-shadow: 0 0 10px currentColor; letter-spacing: 1px; }
+        .title-box p { font-size: 0.65rem; color: #ccc; margin-top: 4px; }
+        
+        .toolbar { display: flex; gap: 8px; background: var(--glass-bg); padding: 6px; border-radius: 12px; border: 1px solid var(--glass-border); backdrop-filter: blur(10px); }
+        .btn-icon {
+            width: 38px; height: 38px; border-radius: 8px; background: rgba(255,255,255,0.05);
+            border: 1px solid #555; color: white; cursor: pointer; display: flex; justify-content: center; align-items: center;
+            transition: 0.2s;
+        }
+        .btn-icon.active { background: white; color: black; box-shadow: 0 0 12px white; }
+        .btn-icon:active { transform: scale(0.85); }
+
+        /* Left Side Tools */
+        .side-tools { 
+            position: absolute; left: 15px; top: 50%; transform: translateY(-50%); 
+            display: flex; flex-direction: column; gap: 10px; 
+            background: var(--glass-bg); padding: 8px; border-radius: 12px; border: 1px solid var(--glass-border); backdrop-filter: blur(10px);
+        }
+
+        /* Right Side Fold Master */
+        .fold-tools {
+            position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .btn-text {
+            background: var(--glass-bg); border: 1px solid var(--glass-border); color: white;
+            padding: 10px; border-radius: 8px; font-weight: bold; font-size: 0.7rem; cursor: pointer;
+            backdrop-filter: blur(10px); text-align: center; writing-mode: vertical-rl; text-orientation: mixed;
+            transition: 0.2s; letter-spacing: 2px;
+        }
+        .btn-text.active { background: var(--color-diamond); color: black; box-shadow: 0 0 15px var(--color-diamond); border-color: white; }
+
+        /* Bottom DJ / Sonar Deck */
+        .bottom-deck {
+            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 100%);
+            padding: 15px 25px; border-radius: 30px; border: 1px solid var(--glass-border);
+            display: flex; flex-direction: column; align-items: center; gap: 10px; backdrop-filter: blur(10px);
+        }
+
+        /* D-PAD Brooch Layout */
+        .d-pad { position: relative; width: 130px; height: 130px; }
+        .d-btn {
+            position: absolute; width: 40px; height: 40px; border-radius: 50%;
+            background: rgba(20,20,30,0.8); border: 2px solid #555;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.1rem; cursor: pointer; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .d-btn.active { transform: scale(1.2); box-shadow: 0 0 20px currentColor, inset 0 0 10px currentColor; border-color: currentColor; background: rgba(255,255,255,0.1); }
+        
+        .btn-x { top: 45px; left: 45px; color: var(--color-x); background: rgba(255,255,255,0.2); }
+        .btn-heart { top: -5px; left: 45px; color: var(--color-heart); }
+        .btn-club { top: 45px; right: -5px; color: var(--color-club); }
+        .btn-spade { bottom: -5px; left: 45px; color: var(--color-spade); }
+        .btn-diamond { top: 45px; left: -5px; color: var(--color-diamond); }
+
+        #universal-upload { display: none; }
+    </style>
+</head>
+<body>
+
+    <video id="hidden-video" loop muted playsinline style="display:none;"></video>
+    <audio id="hidden-audio" loop style="display:none;"></audio>
+
+    <div id="canvas-container" class="interactive"></div>
+
+    <div id="ui-layer">
+        
+        <!-- Top Info & Tools -->
+        <div class="hud-top">
+            <div class="title-box interactive">
+                <h1 id="status-title" style="color: var(--color-x)">CORE PEARL</h1>
+                <p>Matroschka Brooch v4</p>
+            </div>
+            
+            <div class="toolbar interactive">
+                <button class="btn-icon" id="mode-orbit" onclick="setMode('orbit')" title="Orbit Camera"><i class="fas fa-cube"></i></button>
+                <button class="btn-icon active" id="mode-draw" onclick="setMode('draw')" title="3D Stamp / Draw"><i class="fas fa-paint-brush"></i></button>
+                <label class="btn-icon" title="Inject Texture/Media">
+                    <i class="fas fa-upload"></i>
+                    <input type="file" id="universal-upload" accept="*/*" class="interactive">
+                </label>
+                <button class="btn-icon" onclick="exportScene()" title="Export GLB"><i class="fas fa-download"></i></button>
+            </div>
+        </div>
+
+        <!-- Left Tools -->
+        <div class="side-tools interactive">
+            <button class="btn-icon" onclick="clearActiveStage()" title="Clear Stamped Meshes"><i class="fas fa-eraser"></i></button>
+            <button class="btn-icon" onclick="toggleAudioPulse()" id="btn-audio-pulse" title="Audio / Mic Reactivity"><i class="fas fa-microphone"></i></button>
+        </div>
+
+        <!-- Right Fold Master -->
+        <div class="fold-tools interactive">
+            <button class="btn-text active" id="btn-fold" onclick="toggleGlobalFold()">MATROSCHKA FOLD</button>
+        </div>
+
+        <!-- Bottom DJ Deck -->
+        <div class="bottom-deck interactive">
+            <div class="d-pad">
+                <div class="d-btn btn-heart" id="btn-heart" onclick="selectSuit('heart')" title="Bio / Heart">♥️</div>
+                <div class="d-btn btn-diamond" id="btn-diamond" onclick="selectSuit('diamond')" title="Caro / Diamond">♦️</div>
+                <div class="d-btn btn-x active" id="btn-x" onclick="selectSuit('x')" title="Core Pearl / Hub">🔮</div>
+                <div class="d-btn btn-club" id="btn-club" onclick="selectSuit('club')" title="Kreuz / Club">♣️</div>
+                <div class="d-btn btn-spade" id="btn-spade" onclick="selectSuit('spade')" title="Spike / Spade">♠️</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. ARCHITECTURE & LORE DATA
+        // ==========================================
+        const BROOCH_RADIUS = 3.5; // How close they are to the center X
+
+        const LORE = {
+            'heart': { name: '♥️ VOLUMINOUS HEART', color: 0xff2a5f, rotZ: 0, pos: {x: 0, y: BROOCH_RADIUS, z: 0} },
+            'club': { name: '♣️ PYRAMID & SPHERES', color: 0x00ff7f, rotZ: -Math.PI/2, pos: {x: BROOCH_RADIUS, y: 0, z: 0} },
+            'spade': { name: '♠️ DARK SPIKE MIRROR', color: 0x4a0080, rotZ: Math.PI, pos: {x: 0, y: -BROOCH_RADIUS, z: 0} },
+            'diamond': { name: '♦️ CRYSTAL CARO', color: 0x00e5ff, rotZ: Math.PI/2, pos: {x: -BROOCH_RADIUS, y: 0, z: 0} },
+            'x': { name: '🔮 SAFE CORE PEARL', color: 0xffffff, rotZ: 0, pos: {x: 0, y: 0, z: 0} }
+        };
+
+        let currentSuit = 'x';
+        let interactionMode = 'draw'; 
+        let globalFolded = true; // Start as closed matroschka
+        let audioScale = 1;
+
+        // ==========================================
+        // 2. THREE.JS SCENE SETUP
+        // ==========================================
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x030108, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, -25, 25);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.enabled = false; 
+
+        // Lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(5, 15, 20);
+        scene.add(dirLight);
+
+        // Grid Environment
+        const gridHelper = new THREE.GridHelper(150, 75, 0x00e5ff, 0x220044);
+        gridHelper.position.z = -15;
+        gridHelper.rotation.x = Math.PI / 2;
+        gridHelper.material.transparent = true;
+        gridHelper.material.opacity = 0.2;
+        scene.add(gridHelper);
+
+        // Master Group for the entire Brooch
+        const broochMaster = new THREE.Group();
+        scene.add(broochMaster);
+
+        // The Core Pearl (Center)
+        const coreGeo = new THREE.SphereGeometry(1.5, 32, 32);
+        const coreMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, emissive: 0x222222, transmission: 0.9, roughness: 0.1, ior: 1.5 });
+        const corePearl = new THREE.Mesh(coreGeo, coreMat);
+        broochMaster.add(corePearl);
+
+        // ==========================================
+        // 3. MATROSCHKA POCKET GENERATOR
+        // ==========================================
+        const pockets = {};
+
+        function getShape2D(suit) {
+            const s = new THREE.Shape();
+            if (suit === 'heart' || suit === 'spade') {
+                // Heart shape. (Spade will use this but mirrored physically and spiked)
+                s.moveTo(0, 1.5); s.bezierCurveTo(2, 3.5, 4, 1.5, 0, -3); s.bezierCurveTo(-4, 1.5, -2, 3.5, 0, 1.5);
+            } else if (suit === 'diamond') {
+                s.moveTo(0, 4); s.lineTo(3, 0); s.lineTo(0, -4); s.lineTo(-3, 0); s.lineTo(0, 4);
+            } else if (suit === 'club') {
+                // Base 2D outline for the Club to hold the screen
+                s.moveTo(0, -1.5); 
+                s.absarc(0, 2, 1.5, 0, Math.PI*2, false); // Top lobe
+                s.absarc(2, -0.5, 1.5, 0, Math.PI*2, false); // Right lobe
+                s.absarc(-2, -0.5, 1.5, 0, Math.PI*2, false); // Left lobe
+                s.moveTo(-1, -1.5); s.lineTo(1, -1.5); s.lineTo(1.5, -4); s.lineTo(-1.5, -4); // Stem
+            }
+            return s;
+        }
+
+        function createDecoratedLid(suit, baseShape, color) {
+            const lidGroup = new THREE.Group();
+            
+            // Standard thin lid base to cover the screen
+            const lidGeo = new THREE.ExtrudeGeometry(baseShape, { depth: 0.2, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.1, bevelThickness: 0.1 });
+            lidGeo.center();
+            const mat = new THREE.MeshPhysicalMaterial({ color: color, metalness: 0.8, roughness: 0.2, clearcoat: 1.0 });
+            const baseMesh = new THREE.Mesh(lidGeo, mat);
+            lidGroup.add(baseMesh);
+
+            // Add volumetric physical decorations based on user request!
+            if (suit === 'club') {
+                // 3 Spheres + 1 Pyramid (Tetrahedron)
+                const sphereGeo = new THREE.SphereGeometry(1.2, 32, 32);
+                const s1 = new THREE.Mesh(sphereGeo, mat); s1.position.set(0, 2, 0.5);
+                const s2 = new THREE.Mesh(sphereGeo, mat); s2.position.set(2, -0.5, 0.5);
+                const s3 = new THREE.Mesh(sphereGeo, mat); s3.position.set(-2, -0.5, 0.5);
+                
+                const pyrGeo = new THREE.ConeGeometry(1.2, 3, 4); // 4-sided pyramid
+                const pyr = new THREE.Mesh(pyrGeo, mat); 
+                pyr.position.set(0, -2.5, 0.5); pyr.rotation.z = Math.PI;
+
+                lidGroup.add(s1, s2, s3, pyr);
+            } else if (suit === 'diamond') {
+                // Faceted Crystal Volume
+                const octGeo = new THREE.OctahedronGeometry(2.5, 0);
+                const oct = new THREE.Mesh(octGeo, mat);
+                oct.position.set(0, 0, 0.5);
+                oct.scale.z = 0.5; // Flatten slightly
+                lidGroup.add(oct);
+            } else if (suit === 'heart') {
+                // Voluminous rounded bubble
+                const hGeo = new THREE.TorusGeometry(1.5, 0.8, 16, 32);
+                const hMesh = new THREE.Mesh(hGeo, mat);
+                hMesh.position.set(0, 0.5, 0.5);
+                lidGroup.add(hMesh);
+            } else if (suit === 'spade') {
+                // Dark mirror sharp spikes
+                const spikeGeo = new THREE.ConeGeometry(0.8, 4, 3);
+                for(let i=-1; i<=1; i++) {
+                    const spike = new THREE.Mesh(spikeGeo, mat);
+                    spike.position.set(i*1.5, -1, 0.5);
+                    spike.rotation.x = Math.PI/2;
+                    spike.rotation.y = (Math.PI/6) * i;
+                    lidGroup.add(spike);
+                }
+            }
+            return lidGroup;
+        }
+
+        function buildPocket(suit) {
+            const shape = getShape2D(suit);
+            const color = LORE[suit].color;
+            const mat = new THREE.MeshPhysicalMaterial({ color: color, metalness: 0.6, roughness: 0.3, clearcoat: 1.0 });
+            
+            // 1. The Base (Extruded thick block)
+            let bevelSize = suit==='heart' ? 0.4 : 0.1; // Heart is very rounded, others sharper
+            if(suit==='spade') bevelSize = 0.05; // Spade is sharp
+            
+            const baseGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.8, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: bevelSize, bevelThickness: bevelSize });
+            baseGeo.center();
+            const baseMesh = new THREE.Mesh(baseGeo, mat);
+
+            // 2. The Screen (Drawing Canvas)
+            baseGeo.computeBoundingBox();
+            const w = baseGeo.boundingBox.max.x - baseGeo.boundingBox.min.x - 1;
+            const h = baseGeo.boundingBox.max.y - baseGeo.boundingBox.min.y - 1;
+            const screenGeo = new THREE.PlaneGeometry(w, h);
+            const screenMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0a, side: THREE.DoubleSide });
+            const screen = new THREE.Mesh(screenGeo, screenMat);
+            screen.position.z = 0.45; // Front of base
+            baseMesh.add(screen);
+
+            const stageLayer = new THREE.Group();
+            screen.add(stageLayer);
+
+            // 3. The Lid (Decorated)
+            const lid = createDecoratedLid(suit, shape, color);
+            
+            // 4. The Lid Hinge (Top edge of the base)
+            const lidHinge = new THREE.Group();
+            lidHinge.position.y = baseGeo.boundingBox.max.y; // Top edge
+            lidHinge.position.z = 0.4;
+            lid.position.y = -baseGeo.boundingBox.max.y; // Offset back down
+            lid.position.z = 0.2;
+            lidHinge.add(lid);
+            baseMesh.add(lidHinge);
+
+            // 5. The Root Anchor Hinge (At the central Core Pearl)
+            const rootAnchor = new THREE.Group();
+            
+            // Position the base OUTWARD from the center by BROOCH_RADIUS
+            baseMesh.position.y = BROOCH_RADIUS + (baseGeo.boundingBox.max.y / 2);
+            
+            // Rotate to correct quadrant
+            rootAnchor.rotation.z = LORE[suit].rotZ;
+            
+            rootAnchor.add(baseMesh);
+            broochMaster.add(rootAnchor);
+
+            return {
+                anchor: rootAnchor,         // Main hinge at the center
+                base: baseMesh,             // The actual pocket body
+                lidHinge: lidHinge,         // Hinge for the compact mirror
+                screen: screen,             
+                stage: stageLayer,          // Where drawn objects go
+                screenMat: screenMat,       // For textures/video
+                targetAnchorRotX: 0,        // For Matroschka folding
+                targetLidRotX: 0            // For opening the screen
+            };
+        }
+
+        ['heart', 'club', 'spade', 'diamond'].forEach(s => { pockets[s] = buildPocket(s); });
+
+        // ==========================================
+        // 4. STATE MACHINE & ANIMATION LOGIC
+        // ==========================================
+        
+        function updateFoldLogic() {
+            if (globalFolded) {
+                // Matroschka Closed State: All wrap around the Pearl
+                corePearl.visible = true;
+                Object.keys(pockets).forEach(s => {
+                    const p = pockets[s];
+                    p.targetAnchorRotX = -Math.PI / 2.2; // Fold UP (creates a dome)
+                    p.targetLidRotX = 0; // Lid closed
+                });
+            } else {
+                // Flat State or Focused State
+                Object.keys(pockets).forEach(s => {
+                    const p = pockets[s];
+                    p.targetAnchorRotX = 0; // Lay flat on the XY plane
+                    
+                    if (currentSuit === 'x') {
+                        p.targetLidRotX = 0; // All flat but closed
+                    } else if (currentSuit === s) {
+                        p.targetLidRotX = -Math.PI * 0.8; // Open this lid wide
+                    } else {
+                        p.targetLidRotX = 0; // Close others
+                    }
+                });
+            }
+        }
+
+        function selectSuit(suit) {
+            currentSuit = suit;
+            
+            // UI Update
+            document.querySelectorAll('.d-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${suit}`).classList.add('active');
+            
+            const title = document.getElementById('status-title');
+            title.innerText = LORE[suit].name;
+            title.style.color = '#' + LORE[suit].color.toString(16).padStart(6, '0');
+            title.style.textShadow = `0 0 10px ${title.style.color}`;
+
+            // Auto-unfold if a specific suit is clicked
+            if (suit !== 'x' && globalFolded) {
+                globalFolded = false;
+                document.getElementById('btn-fold').classList.remove('active');
+            }
+            updateFoldLogic();
+        }
+
+        function toggleGlobalFold() {
+            globalFolded = !globalFolded;
+            const btn = document.getElementById('btn-fold');
+            if (globalFolded) {
+                btn.classList.add('active');
+                selectSuit('x'); // Auto switch to hub
+            } else {
+                btn.classList.remove('active');
+            }
+            updateFoldLogic();
+        }
+
+        function setMode(mode) {
+            interactionMode = mode;
+            document.getElementById('mode-orbit').classList.remove('active');
+            document.getElementById('mode-draw').classList.remove('active');
+            document.getElementById(`mode-${mode}`).classList.add('active');
+            controls.enabled = (mode === 'orbit');
+        }
+
+        function clearActiveStage() {
+            if (currentSuit !== 'x') {
+                const stage = pockets[currentSuit].stage;
+                while(stage.children.length > 0) stage.remove(stage.children[0]);
+                pockets[currentSuit].screenMat.map = null;
+                pockets[currentSuit].screenMat.needsUpdate = true;
+            }
+        }
+
+        // ==========================================
+        // 5. DRAWING & RAYCASTING (Universal Pointer)
+        // ==========================================
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let isDrawing = false;
+        let lastDrawPos = new THREE.Vector3();
+
+        function getIntersects(clientX, clientY) {
+            if (currentSuit === 'x' || interactionMode !== 'draw' || globalFolded) return null;
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Intersect with active pocket's screen
+            const hit = raycaster.intersectObject(pockets[currentSuit].screen);
+            return hit.length > 0 ? hit[0] : null;
+        }
+
+        function drawShape(hit) {
+            if(!hit) return;
+            const pt = hit.point;
+            if (lastDrawPos.distanceTo(pt) < 1.2) return; // spacing
+            lastDrawPos.copy(pt);
+
+            let geo;
+            if (currentSuit === 'heart') geo = new THREE.SphereGeometry(0.5, 16, 16);
+            else if (currentSuit === 'diamond') geo = new THREE.OctahedronGeometry(0.6, 0);
+            else if (currentSuit === 'club') geo = new THREE.TorusGeometry(0.4, 0.2, 8, 16);
+            else geo = new THREE.TetrahedronGeometry(0.6, 0); 
+
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: LORE[currentSuit].color, emissive: LORE[currentSuit].color, 
+                emissiveIntensity: 0.6, roughness: 0.1, metalness: 0.8 
+            });
+
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+            
+            pockets[currentSuit].screen.worldToLocal(pt);
+            mesh.position.copy(pt);
+            mesh.position.z += 0.5; // Pop out
+            
+            mesh.userData.baseScale = mesh.scale.clone();
+            pockets[currentSuit].stage.add(mesh);
+        }
+
+        // Universal Pointer Events (handles Mouse and Touch perfectly)
+        container.addEventListener('pointerdown', (e) => {
+            if(interactionMode === 'draw') {
+                isDrawing = true;
+                drawShape(getIntersects(e.clientX, e.clientY));
+                e.preventDefault(); // Stop mobile scroll gestures
+            }
+        });
+        container.addEventListener('pointermove', (e) => {
+            if(interactionMode === 'draw') e.preventDefault();
+            if(isDrawing) drawShape(getIntersects(e.clientX, e.clientY));
+        });
+        window.addEventListener('pointerup', () => { isDrawing = false; lastDrawPos.set(0,0,0); });
+
+
+        // ==========================================
+        // 6. UNIVERSAL INJECTOR & AUDIO
+        // ==========================================
+        document.getElementById('universal-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+
+            const url = URL.createObjectURL(file);
+            const ext = file.name.split('.').pop().toLowerCase();
+            const type = file.type;
+            let targetMat = pockets[currentSuit] ? pockets[currentSuit].screenMat : null;
+
+            if (type.startsWith('image/')) {
+                new THREE.TextureLoader().load(url, (tex) => { if(targetMat) { targetMat.map = tex; targetMat.needsUpdate = true; } });
+            } else if (type.startsWith('video/') || ext === 'mp4') {
+                const vid = document.getElementById('hidden-video'); vid.src = url; vid.play();
+                const tex = new THREE.VideoTexture(vid);
+                if(targetMat) { targetMat.map = tex; targetMat.needsUpdate = true; }
+            } else if (type.startsWith('audio/') || ext === 'mp3') {
+                const aud = document.getElementById('hidden-audio'); aud.src = url; aud.play();
+                setupAudioNodes(aud);
+            } else if (ext === 'glb' || ext === 'gltf') {
+                if (currentSuit === 'x') return alert("Select a Pocket to inject 3D.");
+                new THREE.GLTFLoader().load(url, (gltf) => {
+                    const model = gltf.scene;
+                    const box = new THREE.Box3().setFromObject(model);
+                    const scale = 5 / box.getSize(new THREE.Vector3()).length(); 
+                    model.scale.setScalar(scale); model.position.z = 1.0;
+                    model.traverse(c => { if(c.isMesh) c.userData.baseScale = c.scale.clone(); });
+                    pockets[currentSuit].stage.add(model);
+                });
+            }
+        });
+
+        let audioCtx, analyser, dataArray;
+        let isMicReactive = false;
+
+        async function toggleAudioPulse() {
+            const btn = document.getElementById('btn-audio-pulse');
+            if (isMicReactive) {
+                isMicReactive = false; btn.classList.remove('active');
+                if (audioCtx) audioCtx.suspend();
+                return;
+            }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                setupAudioNodes(stream);
+                isMicReactive = true; btn.classList.add('active');
+            } catch (err) { alert("Microphone access needed."); }
+        }
+
+        function setupAudioNodes(sourceMedia) {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            analyser = audioCtx.createAnalyser(); analyser.fftSize = 64;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            
+            let source = (sourceMedia instanceof HTMLMediaElement) 
+                ? audioCtx.createMediaElementSource(sourceMedia) 
+                : audioCtx.createMediaStreamSource(sourceMedia);
+            
+            source.connect(analyser);
+            if(sourceMedia instanceof HTMLMediaElement) analyser.connect(audioCtx.destination);
+        }
+
+        function exportScene() {
+            new THREE.GLTFExporter().parse(currentSuit === 'x' ? scene : pockets[currentSuit].anchor, function (gltf) {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(new Blob([JSON.stringify(gltf)], { type: 'text/plain' }));
+                link.download = 'Starweber_V4_Export.gltf'; link.click();
+            }, console.error);
+        }
+
+        // ==========================================
+        // 7. RENDER LOOP
+        // ==========================================
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(controls.enabled) controls.update();
+            const delta = clock.getDelta();
+            const lerpSpeed = 6.0 * delta; // Frame-rate independent lerp
+
+            // Audio processing
+            if (analyser && (isMicReactive || !document.getElementById('hidden-audio').paused)) {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0; for(let i=0; i<dataArray.length; i++) sum += dataArray[i];
+                audioScale = 1 + ((sum / dataArray.length) / 256) * 1.5;
+            } else { audioScale = 1; }
+
+            // Core Pearl Pulse
+            corePearl.scale.setScalar(audioScale);
+            corePearl.rotation.y += 0.01;
+
+            // Animate Pockets (Matroschka Fold & Lid Hinge)
+            Object.keys(pockets).forEach((key) => {
+                const p = pockets[key];
+                
+                // 1. Fold the main anchor (Up for Matroschka, Flat otherwise)
+                p.anchor.rotation.x += (p.targetAnchorRotX - p.anchor.rotation.x) * lerpSpeed;
+                
+                // 2. Open/Close the Lid (Compact Mirror)
+                p.lidHinge.rotation.x += (p.targetLidRotX - p.lidHinge.rotation.x) * lerpSpeed;
+
+                // 3. Audio react drawn objects
+                p.stage.children.forEach(mesh => {
+                    if (mesh.userData.baseScale) {
+                        mesh.scale.copy(mesh.userData.baseScale).multiplyScalar(audioScale);
+                    }
+                    mesh.rotation.x += 1.5 * delta;
+                    mesh.rotation.y += 2.0 * delta;
+                });
+            });
+
+            // Gentle floating of the entire brooch if fully folded
+            if (globalFolded) {
+                broochMaster.position.y = Math.sin(clock.elapsedTime) * 1.5;
+                broochMaster.rotation.y += 0.5 * delta;
+            } else {
+                broochMaster.position.lerp(new THREE.Vector3(0,0,0), lerpSpeed);
+                broochMaster.rotation.y += (0 - broochMaster.rotation.y) * lerpSpeed;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateFoldLogic(); // Init state
+        animate();
+
+    </script>
+</body>
+</html>
