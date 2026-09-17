@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>STARWEBER: Polly Pocket OS v2</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --color-heart: #ff4b72;   /* Bio/Love/Fluid */
+            --color-diamond: #00e5ff; /* Tech/Scan/Projection */
+            --color-club: #00ff7f;    /* Eco/Fusion/Recycle */
+            --color-spade: #9d4edd;   /* Data/Spike/Materializer */
+            --color-x: #ffffff;       /* Hub/Fold Core */
+            --color-bg: #050508;
+            --glass-bg: rgba(10, 15, 25, 0.4);
+            --glass-border: rgba(0, 229, 255, 0.3);
+            --neon-glow: 0 0 10px rgba(0, 229, 255, 0.5);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        
+        body, html {
+            width: 100%; height: 100%; background-color: var(--color-bg);
+            overflow: hidden; font-family: 'Courier New', Courier, monospace;
+            touch-action: none; color: white;
+        }
+
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        #ui-layer {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 10; pointer-events: none; display: flex; flex-direction: column;
+        }
+
+        .interactive { pointer-events: auto; }
+
+        /* Top HUD */
+        .hud-top {
+            display: flex; justify-content: space-between; padding: 20px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+        }
+        
+        .info-panel h2 { font-size: 1.2rem; margin-bottom: 5px; text-shadow: var(--neon-glow); letter-spacing: 2px;}
+        .info-panel p { font-size: 0.75rem; color: #aaa; max-width: 300px; line-height: 1.4; }
+        .layer-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-weight: bold; margin-top: 5px; border: 1px solid currentColor;}
+
+        /* Floating Toolbars */
+        .toolbar {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; gap: 10px; padding: 10px;
+            background: var(--glass-bg); border-radius: 20px; border: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px);
+        }
+        .toolbar.left { left: 20px; }
+        .toolbar.right { right: 20px; }
+
+        .btn-icon {
+            width: 45px; height: 45px; border-radius: 50%; background: rgba(0,0,0,0.5);
+            border: 1px solid #555; color: white; font-size: 1.1rem;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .btn-icon:hover { background: rgba(255,255,255,0.1); border-color: white; }
+        .btn-icon.active { background: var(--color-diamond); color: black; box-shadow: var(--neon-glow); }
+        .btn-icon.danger.active { background: var(--color-heart); box-shadow: 0 0 10px var(--color-heart); }
+
+        /* DJ Pult / Sonar Deck (Bottom HUD) */
+        .dj-deck-container {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 220px;
+            display: flex; justify-content: center; align-items: flex-end; padding-bottom: 20px;
+            background: linear-gradient(0deg, rgba(0,20,30,0.9) 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        .dj-sonar {
+            width: 300px; height: 150px; position: relative; pointer-events: auto;
+            display: flex; justify-content: center; align-items: flex-end;
+            background: radial-gradient(circle at bottom center, rgba(0,229,255,0.1) 0%, transparent 70%);
+            border-bottom: 2px solid var(--color-diamond);
+        }
+
+        /* Arc Sliders representing Helix/Sonar */
+        .sonar-track {
+            position: absolute; bottom: 0; border: 1px dashed rgba(255,255,255,0.2);
+            border-radius: 50% 50% 0 0; border-bottom: none;
+            display: flex; justify-content: center; transform-origin: bottom center;
+        }
+        .track-1 { width: 280px; height: 140px; }
+        .track-2 { width: 220px; height: 110px; }
+        .track-3 { width: 160px; height: 80px; }
+
+        .sonar-slider {
+            -webkit-appearance: none; appearance: none;
+            position: absolute; width: 100%; height: 20px;
+            background: transparent; outline: none; bottom: 10px;
+        }
+        .sonar-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 15px; height: 15px;
+            border-radius: 50%; background: white; cursor: pointer;
+            box-shadow: 0 0 10px currentColor; border: 2px solid #000;
+        }
+        .mod-label { position: absolute; bottom: -20px; font-size: 0.6rem; color: #888; text-transform: uppercase; }
+
+        /* Suit Core Selector (Center of Sonar) */
+        .core-selector {
+            position: absolute; bottom: 0; width: 80px; height: 40px;
+            background: var(--glass-bg); border-radius: 40px 40px 0 0;
+            border: 2px solid var(--color-x); display: flex; justify-content: center; align-items: center;
+            cursor: pointer; backdrop-filter: blur(5px); transition: 0.3s;
+        }
+        .core-selector:hover { box-shadow: 0 0 20px var(--color-x); }
+        .suit-ring {
+            position: absolute; bottom: 60px; display: flex; gap: 15px;
+            transition: all 0.3s; opacity: 1; pointer-events: auto;
+        }
+        .suit-btn {
+            width: 35px; height: 35px; border-radius: 5px; background: #111;
+            border: 1px solid #444; display: flex; justify-content: center; align-items: center;
+            cursor: pointer; font-size: 1.2rem; transform: rotate(45deg);
+        }
+        .suit-btn span { transform: rotate(-45deg); }
+        .suit-btn.active { border-color: currentColor; box-shadow: 0 0 10px currentColor; }
+        
+        .suit-heart { color: var(--color-heart); }
+        .suit-diamond { color: var(--color-diamond); }
+        .suit-club { color: var(--color-club); }
+        .suit-spade { color: var(--color-spade); }
+
+        /* Panels (Stage, Audio) */
+        .panel {
+            position: absolute; top: 80px; right: 20px; width: 250px;
+            background: rgba(10, 15, 20, 0.85); border: 1px solid var(--glass-border);
+            border-radius: 10px; padding: 15px; display: none; backdrop-filter: blur(10px);
+        }
+        .panel h4 { font-size: 0.9rem; margin-bottom: 10px; color: var(--color-diamond); border-bottom: 1px solid #333; padding-bottom: 5px;}
+        .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.8rem;}
+        .setting-row input[type="range"] { width: 100px; }
+        .toggle-switch { width: 40px; height: 20px; background: #333; border-radius: 10px; position: relative; cursor: pointer; }
+        .toggle-switch::after { content: ''; position: absolute; width: 16px; height: 16px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: 0.2s; }
+        .toggle-switch.on { background: var(--color-diamond); }
+        .toggle-switch.on::after { left: 22px; }
+
+        /* Fold Button */
+        .fold-btn-container { position: absolute; right: 20px; bottom: 20px; pointer-events: auto; }
+        .btn-polly {
+            background: linear-gradient(135deg, #444, #111); border: 2px solid var(--color-x);
+            color: white; padding: 15px 25px; border-radius: 30px; font-weight: bold;
+            letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); transition: 0.3s;
+        }
+        .btn-polly:hover { transform: translateY(-3px); box-shadow: 0 15px 25px rgba(255,255,255,0.1); }
+        .btn-polly.folded { background: linear-gradient(135deg, var(--color-diamond), var(--color-heart)); color: black; border-color: black; }
+
+        /* File Upload */
+        #tex-upload { display: none; }
+    </style>
+</head>
+<body>
+
+    <canvas id="stage"></canvas>
+
+    <div id="ui-layer">
+        
+        <!-- Top Info -->
+        <div class="hud-top">
+            <div class="info-panel">
+                <h2>STARWEBER OS v2</h2>
+                <p>Holo-Shell Pocket Matrix. Fold space, shape matter.</p>
+                <div class="layer-badge" id="active-badge" style="color: var(--color-x)">CORE X-HUB</div>
+            </div>
+            
+            <div style="pointer-events: auto; display: flex; gap: 10px;">
+                <button class="btn-icon" onclick="togglePanel('stage-panel')" title="Stage Editor"><i class="fas fa-sliders-h"></i></button>
+                <button class="btn-icon" onclick="toggleAudio()" id="btn-audio" title="Audio Reactivity"><i class="fas fa-microphone-alt"></i></button>
+                <button class="btn-icon" onclick="exportGLB()" title="Export Setup"><i class="fas fa-save"></i></button>
+            </div>
+        </div>
+
+        <!-- Left Toolbar: Draw Modes -->
+        <div class="toolbar left interactive">
+            <button class="btn-icon active" id="mode-stamp" onclick="setDrawMode('stamp')" title="Single Stamp"><i class="fas fa-stamp"></i></button>
+            <button class="btn-icon" id="mode-mesh" onclick="setDrawMode('mesh')" title="Mesh/Draw"><i class="fas fa-paint-brush"></i></button>
+            <button class="btn-icon danger" id="mode-erase" onclick="setDrawMode('erase')" title="Erase"><i class="fas fa-eraser"></i></button>
+            <hr style="border-color: #444; width: 80%; margin: 0 auto;">
+            <button class="btn-icon" id="mode-mirror" onclick="toggleMirror()" title="Radial Mirror"><i class="fas fa-snowflake"></i></button>
+            <button class="btn-icon" id="mode-shapes" onclick="toggleShapeStyle()" title="Toggle True Suits / Primitives"><i class="fas fa-cube"></i></button>
+            <label class="btn-icon" title="Upload Texture">
+                <i class="fas fa-upload"></i>
+                <input type="file" id="tex-upload" accept="image/*">
+            </label>
+        </div>
+
+        <!-- Right Tool Panels (Hidden by default) -->
+        <div class="panel interactive" id="stage-panel">
+            <h4>Stage & Light Editor</h4>
+            <div class="setting-row"><span>Matroschka Depth</span><input type="range" id="stage-depth" min="0" max="100" value="30" oninput="updateShells()"></div>
+            <div class="setting-row"><span>Ambient Light</span><input type="range" id="light-amb" min="0" max="200" value="60" oninput="updateLights()"></div>
+            <div class="setting-row"><span>Core Glow</span><input type="range" id="light-core" min="0" max="200" value="100" oninput="updateLights()"></div>
+            <hr style="border-color: #333; margin: 10px 0;">
+            <h4>Audio Routing</h4>
+            <div class="setting-row"><span>Pulse (Scale)</span><div class="toggle-switch on" id="tog-pulse" onclick="this.classList.toggle('on')"></div></div>
+            <div class="setting-row"><span>Color Shift</span><div class="toggle-switch" id="tog-color" onclick="this.classList.toggle('on')"></div></div>
+            <div class="setting-row"><span>Helix Spin</span><div class="toggle-switch" id="tog-spin" onclick="this.classList.toggle('on')"></div></div>
+            <hr style="border-color: #333; margin: 10px 0;">
+            <button onclick="clearActiveLayer()" style="width:100%; padding: 5px; background: #500; color: white; border: none; border-radius: 5px; cursor:pointer;">CLEAR ACTIVE SHELL</button>
+        </div>
+
+        <!-- DJ Pult / Sonar HUD -->
+        <div class="dj-deck-container">
+            <div class="suit-ring" id="suit-ring">
+                <div class="suit-btn suit-diamond" onclick="setSuit('diamond')" id="btn-diamond"><span>♦️</span></div>
+                <div class="suit-btn suit-heart" onclick="setSuit('heart')" id="btn-heart"><span>♥️</span></div>
+                <div class="suit-btn suit-club" onclick="setSuit('club')" id="btn-club"><span>♣️</span></div>
+                <div class="suit-btn suit-spade" onclick="setSuit('spade')" id="btn-spade"><span>♠️</span></div>
+            </div>
+            
+            <div class="dj-sonar">
+                <!-- Size -->
+                <div class="sonar-track track-1">
+                    <input type="range" class="sonar-slider" style="color: white;" id="mod-size" min="1" max="100" value="25">
+                    <span class="mod-label">SIZE</span>
+                </div>
+                <!-- Stretch -->
+                <div class="sonar-track track-2">
+                    <input type="range" class="sonar-slider" style="color: var(--color-diamond);" id="mod-stretch" min="1" max="100" value="50">
+                    <span class="mod-label" style="bottom:-5px;">STRETCH</span>
+                </div>
+                <!-- Gear/Spin -->
+                <div class="sonar-track track-3">
+                    <input type="range" class="sonar-slider" style="color: var(--color-heart);" id="mod-gear" min="0" max="360" value="0">
+                    <span class="mod-label" style="bottom:10px;">GEAR</span>
+                </div>
+
+                <div class="core-selector" onclick="setSuit('x')" id="btn-x">
+                    <i class="fas fa-times" style="font-size: 1.5rem; color: var(--color-x)"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="fold-btn-container">
+            <button class="btn-polly" id="btn-fold" onclick="togglePocket()">POLLY POCKET</button>
+        </div>
+    </div>
+
+    <script>
+        const THEME = {
+            'heart': { name: '♥️ HERZ (Bio)', color: 0xff4b72 },
+            'diamond': { name: '♦️ KARO (Tech)', color: 0x00e5ff },
+            'club': { name: '♣️ KREUZ (Eco)', color: 0x00ff7f },
+            'spade': { name: '♠️ PIK (Data)', color: 0x9d4edd },
+            'x': { name: '❌ X-HUB CORE', color: 0xffffff }
+        };
+
+        // State
+        let currentSuit = 'x';
+        let drawMode = 'stamp'; // stamp, mesh, erase
+        let isMirror = false;
+        let useTrueShapes = true;
+        let isPocketClosed = false;
+        let isAudioReactive = false;
+        let customTexture = null;
+
+        // Stage setup
+        const canvas = document.getElementById('stage');
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050508, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 40);
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(10, 20, 20);
+        scene.add(dirLight);
+        
+        // Core Pearl Light
+        const coreLight = new THREE.PointLight(0xffffff, 1, 30);
+        scene.add(coreLight);
+
+        // Core Pearl Mesh
+        const pearlGeo = new THREE.SphereGeometry(2, 32, 32);
+        const pearlMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, emissive: 0x444444, transmission: 0.9, roughness: 0.1, ior: 1.5 });
+        const corePearl = new THREE.Mesh(pearlGeo, pearlMat);
+        scene.add(corePearl);
+
+        // Helper to generate 3D Extruded shapes
+        function createExtrudedSuit(pathFunc, sizeMultiplier) {
+            const shape = new THREE.Shape();
+            pathFunc(shape);
+            const extrudeSettings = { depth: 0.2, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.1, bevelThickness: 0.1 };
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            geo.center();
+            geo.scale(sizeMultiplier, sizeMultiplier, sizeMultiplier);
+            return geo;
+        }
+
+        // True Suit Paths
+        const trueGeos = {};
+        
+        // Heart
+        trueGeos.heart = createExtrudedSuit((s) => {
+            s.moveTo(0, 1.5);
+            s.bezierCurveTo(2, 3.5, 4, 1.5, 0, -3);
+            s.bezierCurveTo(-4, 1.5, -2, 3.5, 0, 1.5);
+        }, 0.5);
+
+        // Diamond
+        trueGeos.diamond = createExtrudedSuit((s) => {
+            s.moveTo(0, 3); s.lineTo(2, 0); s.lineTo(0, -3); s.lineTo(-2, 0); s.lineTo(0, 3);
+        }, 0.6);
+
+        // Club
+        trueGeos.club = createExtrudedSuit((s) => {
+            s.moveTo(0, -1);
+            s.absarc(0, 1.5, 1.2, 0, Math.PI*2, false);
+            s.absarc(1.5, -0.5, 1.2, 0, Math.PI*2, false);
+            s.absarc(-1.5, -0.5, 1.2, 0, Math.PI*2, false);
+            s.moveTo(-0.5, -1); s.lineTo(0.5, -1); s.lineTo(1, -3); s.lineTo(-1, -3);
+        }, 0.4);
+
+        // Spade
+        trueGeos.spade = createExtrudedSuit((s) => {
+            s.moveTo(0, -1.5);
+            s.bezierCurveTo(2, -3.5, 4, -1.5, 0, 3); // Inverted heart
+            s.bezierCurveTo(-4, -1.5, -2, -3.5, 0, -1.5);
+            s.moveTo(-0.5, -1.5); s.lineTo(0.5, -1.5); s.lineTo(1, -3.5); s.lineTo(-1, -3.5);
+        }, 0.5);
+
+        // Classic Primitive Geometries (Fallback/Alternative)
+        const primGeos = {
+            'heart': new THREE.SphereGeometry(1, 16, 16),
+            'diamond': new THREE.OctahedronGeometry(1, 0),
+            'club': new THREE.TorusGeometry(0.8, 0.4, 8, 16),
+            'spade': new THREE.IcosahedronGeometry(1, 0)
+        };
+
+        const materials = {};
+        ['heart', 'diamond', 'club', 'spade'].forEach(suit => {
+            materials[suit] = new THREE.MeshPhysicalMaterial({ 
+                color: THEME[suit].color, transmission: 0.5, roughness: 0.2, 
+                metalness: 0.5, clearcoat: 1.0, emissive: THEME[suit].color, emissiveIntensity: 0.2
+            });
+        });
+
+        const shells = {};
+        const sheetGeo = new THREE.PlaneGeometry(20, 30, 20, 20); // More segments for potential bending
+        
+        const shellAngles = {
+            'heart': { open: {x:0, y:0, z:0}, close: {x: Math.PI/2.5, y:0, z:0}, offset: {x:0, y:-15, z:0} },
+            'spade': { open: {x:0, y:0, z:0}, close: {x: -Math.PI/2.5, y:0, z:0}, offset: {x:0, y:15, z:0} },
+            'diamond': { open: {x:0, y:0, z:0}, close: {x:0, y:-Math.PI/2.5, z:0}, offset: {x:10, y:0, z:0} },
+            'club': { open: {x:0, y:0, z:0}, close: {x:0, y:Math.PI/2.5, z:0}, offset: {x:-10, y:0, z:0} }
+        };
+
+        let shellIndex = 0;
+        ['heart', 'diamond', 'club', 'spade'].forEach(suit => {
+            const mat = new THREE.MeshPhysicalMaterial({
+                color: THEME[suit].color, transmission: 0.95, opacity: 1, transparent: true,
+                roughness: 0.1, side: THREE.DoubleSide, depthWrite: false
+            });
+            
+            const mesh = new THREE.Mesh(sheetGeo, mat);
+            const wire = new THREE.LineSegments(new THREE.WireframeGeometry(sheetGeo), new THREE.LineBasicMaterial({ color: THEME[suit].color, transparent: true, opacity: 0.15 }));
+            mesh.add(wire);
+
+            // Create a hinge pivot
+            const pivot = new THREE.Group();
+            
+            // Offset mesh so pivot is at the edge (for banana fold)
+            mesh.position.copy(shellAngles[suit].offset);
+            pivot.add(mesh);
+            
+            scene.add(pivot);
+
+            const drawnLayer = new THREE.Group();
+            mesh.add(drawnLayer); // Attach drawings to the sheet
+
+            shells[suit] = { pivot, mesh, drawnLayer, index: shellIndex++, basePos: new THREE.Vector3(), baseRot: new THREE.Vector3() };
+        });
+
+        // Updates shell positions based on Stage Depth slider (Multiplane effect)
+        function updateShells() {
+            if (isPocketClosed) return;
+            const depth = document.getElementById('stage-depth').value / 10;
+            
+            Object.keys(shells).forEach(suit => {
+                const s = shells[suit];
+                if (currentSuit === 'x') {
+                    // Staggered view
+                    s.basePos.set(0, 0, - (s.index * depth));
+                    s.mesh.material.opacity = 0.8;
+                } else {
+                    if (currentSuit === suit) {
+                        s.basePos.set(0, 0, 0);
+                        s.mesh.material.opacity = 1.0;
+                    } else {
+                        s.basePos.set(0, 0, - (s.index * depth) - 5);
+                        s.mesh.material.opacity = 0.1; // Ghost out others
+                    }
+                }
+            });
+        }
+
+        function setSuit(suit) {
+            currentSuit = suit;
+            document.querySelectorAll('.suit-btn').forEach(b => b.classList.remove('active'));
+            if(suit !== 'x') document.getElementById(`btn-${suit}`).classList.add('active');
+            
+            const badge = document.getElementById('active-badge');
+            badge.innerText = THEME[suit].name;
+            badge.style.color = '#' + THEME[suit].color.toString(16).padStart(6,'0');
+            badge.style.borderColor = badge.style.color;
+
+            if (isPocketClosed && suit !== 'x') togglePocket(); // Auto open if drawing
+            updateShells();
+        }
+
+        function setDrawMode(mode) {
+            drawMode = mode;
+            ['stamp', 'mesh', 'erase'].forEach(m => document.getElementById(`mode-${m}`).classList.remove('active'));
+            document.getElementById(`mode-${mode}`).classList.add('active');
+        }
+
+        function toggleMirror() {
+            isMirror = !isMirror;
+            document.getElementById('mode-mirror').classList.toggle('active');
+        }
+
+        function toggleShapeStyle() {
+            useTrueShapes = !useTrueShapes;
+            document.getElementById('mode-shapes').classList.toggle('active');
+        }
+
+        function togglePocket() {
+            isPocketClosed = !isPocketClosed;
+            const btn = document.getElementById('btn-fold');
+            btn.classList.toggle('folded');
+            btn.innerText = isPocketClosed ? "OPEN SHELLS" : "POLLY POCKET";
+
+            if (isPocketClosed) setSuit('x'); // Force view to X core to see folding
+            else updateShells();
+        }
+
+        function togglePanel(id) {
+            const p = document.getElementById(id);
+            p.style.display = p.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function updateLights() {
+            ambientLight.intensity = document.getElementById('light-amb').value / 100;
+            coreLight.intensity = document.getElementById('light-core').value / 100;
+        }
+
+        // Texture Upload
+        document.getElementById('tex-upload').addEventListener('change', function(e) {
+            if(e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const img = new Image();
+                    img.src = ev.target.result;
+                    img.onload = () => {
+                        const tex = new THREE.Texture(img);
+                        tex.needsUpdate = true;
+                        customTexture = tex;
+                        // Apply to current materials
+                        Object.values(materials).forEach(m => { m.map = customTexture; m.needsUpdate = true; });
+                        document.querySelector('.fa-upload').parentElement.classList.add('active');
+                    }
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let isDrawing = false;
+        let lastDrawPos = new THREE.Vector3();
+
+        function getIntersects(clientX, clientY, targetObjects) {
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(targetObjects, true);
+            return intersects.length > 0 ? intersects[0] : null;
+        }
+
+        function executeTool(clientX, clientY) {
+            if (currentSuit === 'x' || isPocketClosed) return; // Only orbital viewing
+
+            const sheet = shells[currentSuit];
+            
+            if (drawMode === 'erase') {
+                // Erase mode: intersect with drawn children
+                const hit = getIntersects(clientX, clientY, sheet.drawnLayer.children);
+                if (hit) {
+                    // Traverse up to find the root group of the stamped object
+                    let obj = hit.object;
+                    while (obj.parent && obj.parent !== sheet.drawnLayer) { obj = obj.parent; }
+                    sheet.drawnLayer.remove(obj);
+                }
+                return;
+            }
+
+            // Stamp/Mesh mode: intersect with the plane
+            const hit = getIntersects(clientX, clientY, [sheet.mesh]);
+            if (!hit) return;
+
+            const pt = hit.point;
+            
+            if (drawMode === 'mesh' && lastDrawPos.distanceTo(pt) < 1.5) return; // Prevent dense overlapping
+            lastDrawPos.copy(pt);
+
+            placeObject(pt, sheet);
+
+            if (isMirror) {
+                // Radial Mirroring (4-way symmetry)
+                for(let i = 1; i < 4; i++) {
+                    const angle = (Math.PI / 2) * i;
+                    const mirroredPt = new THREE.Vector3(
+                        pt.x * Math.cos(angle) - pt.y * Math.sin(angle),
+                        pt.x * Math.sin(angle) + pt.y * Math.cos(angle),
+                        pt.z
+                    );
+                    placeObject(mirroredPt, sheet);
+                }
+            }
+        }
+
+        function placeObject(worldPt, sheet) {
+            // Get values from DJ Sonar
+            const sBase = document.getElementById('mod-size').value / 25;
+            const stretch = document.getElementById('mod-stretch').value / 50; // 0.02 to 2
+            const gearRot = document.getElementById('mod-gear').value * (Math.PI/180);
+
+            const geo = useTrueShapes ? trueGeos[currentSuit] : primGeos[currentSuit];
+            const mesh = new THREE.Mesh(geo, materials[currentSuit].clone()); // Clone mat for individual color shifts
+            
+            mesh.scale.set(sBase * stretch, sBase / stretch, sBase);
+            mesh.rotation.z = gearRot + (Math.random() * 0.2);
+            if(!useTrueShapes) mesh.rotation.x = Math.random() * Math.PI; // Randomize primitives more
+
+            mesh.userData.baseScale = mesh.scale.clone();
+            mesh.userData.baseColor = mesh.material.color.clone();
+
+            sheet.mesh.worldToLocal(worldPt);
+            mesh.position.copy(worldPt);
+            mesh.position.z += Math.random() * 0.5 + 0.5; // Offset from plane
+
+            // Add an inner glowing wireframe for cyberfunk look
+            const wireGeo = new THREE.EdgesGeometry(geo);
+            const wireMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+            const wire = new THREE.LineSegments(wireGeo, wireMat);
+            mesh.add(wire);
+
+            sheet.drawnLayer.add(mesh);
+        }
+
+        function clearActiveLayer() {
+            if (currentSuit === 'x') {
+                Object.values(shells).forEach(s => { while(s.drawnLayer.children.length > 0) s.drawnLayer.remove(s.drawnLayer.children[0]); });
+            } else {
+                const l = shells[currentSuit].drawnLayer;
+                while(l.children.length > 0) l.remove(l.children[0]);
+            }
+        }
+
+        // Input Events
+        window.addEventListener('mousedown', (e) => {
+            if(e.target.closest('.interactive') || e.target.closest('.dj-deck-container')) return;
+            isDrawing = true;
+            if(drawMode === 'stamp') executeTool(e.clientX, e.clientY);
+        });
+        window.addEventListener('mousemove', (e) => {
+            if(isDrawing && drawMode !== 'stamp') executeTool(e.clientX, e.clientY);
+            
+            // Orbital control if folded or X mode
+            if(!isDrawing && (isPocketClosed || currentSuit === 'x')) {
+                const rotX = (e.clientX / window.innerWidth - 0.5) * 2;
+                const rotY = (e.clientY / window.innerHeight - 0.5) * 2;
+                scene.rotation.y = rotX * 0.5;
+                scene.rotation.x = rotY * 0.5;
+            }
+        });
+        window.addEventListener('mouseup', () => { isDrawing = false; lastDrawPos.set(0,0,0); });
+        
+        // Touch support
+        window.addEventListener('touchstart', (e) => {
+            if(e.target.closest('.interactive') || e.target.closest('.dj-deck-container')) return;
+            isDrawing = true;
+            if(drawMode === 'stamp') executeTool(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+        window.addEventListener('touchmove', (e) => {
+            if(e.target.closest('.interactive') || e.target.closest('.dj-deck-container')) return;
+            e.preventDefault();
+            if(isDrawing && drawMode !== 'stamp') executeTool(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+        window.addEventListener('touchend', () => { isDrawing = false; lastDrawPos.set(0,0,0); });
+
+        let audioCtx, analyser, dataArray;
+        
+        async function toggleAudio() {
+            const btn = document.getElementById('btn-audio');
+            if (isAudioReactive) {
+                isAudioReactive = false;
+                btn.classList.remove('active');
+                if (audioCtx) audioCtx.suspend();
+                return;
+            }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioCtx.createMediaStreamSource(stream);
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 64;
+                source.connect(analyser);
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                isAudioReactive = true;
+                btn.classList.add('active');
+            } catch (err) { alert("Microphone access needed for audio effects."); }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const lerpSpeed = 0.08;
+            const time = Date.now() * 0.001;
+
+            // Audio processing
+            let audioScale = 1;
+            if (isAudioReactive && analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0; for(let i=0; i<dataArray.length; i++) sum += dataArray[i];
+                audioScale = 1 + ((sum / dataArray.length) / 256) * 2;
+                corePearl.scale.setScalar(1 + (audioScale-1)*0.5);
+                corePearl.material.emissiveIntensity = audioScale * 2;
+            } else {
+                // Idle pulse for core
+                corePearl.scale.setScalar(1 + Math.sin(time*2)*0.05);
+                corePearl.material.emissiveIntensity = 1 + Math.sin(time)*0.5;
+            }
+
+            const doPulse = document.getElementById('tog-pulse').classList.contains('on');
+            const doColor = document.getElementById('tog-color').classList.contains('on');
+            const doSpin = document.getElementById('tog-spin').classList.contains('on');
+
+            // Update Shells (Folding & Audio React)
+            Object.keys(shells).forEach(suit => {
+                const s = shells[suit];
+                
+                // Target Positions based on fold state
+                const targetRot = isPocketClosed ? shellAngles[suit].close : s.baseRot;
+                const targetPos = isPocketClosed ? new THREE.Vector3(0,0,0) : s.basePos; // Pull to center when folded
+
+                s.pivot.rotation.x += (targetRot.x - s.pivot.rotation.x) * lerpSpeed;
+                s.pivot.rotation.y += (targetRot.y - s.pivot.rotation.y) * lerpSpeed;
+                s.pivot.rotation.z += (targetRot.z - s.pivot.rotation.z) * lerpSpeed;
+                s.pivot.position.lerp(targetPos, lerpSpeed);
+
+                // Modify drawn children based on Audio Toggles
+                s.drawnLayer.children.forEach((mesh, i) => {
+                    if (!mesh.userData.baseScale) return;
+                    
+                    if (isAudioReactive) {
+                        if (doPulse) {
+                            mesh.scale.copy(mesh.userData.baseScale).multiplyScalar(audioScale * 0.8);
+                        }
+                        if (doColor && mesh.material.color) {
+                            const hsl = {}; mesh.userData.baseColor.getHSL(hsl);
+                            mesh.material.color.setHSL((hsl.h + (audioScale-1)*0.5) % 1.0, hsl.s, hsl.l);
+                        }
+                        if (doSpin) {
+                            mesh.rotation.z += (audioScale - 1) * 0.1;
+                        }
+                    } else {
+                        // Reset if audio is off
+                        mesh.scale.lerp(mesh.userData.baseScale, 0.1);
+                        if(mesh.material.color) mesh.material.color.lerp(mesh.userData.baseColor, 0.1);
+                    }
+                    
+                    // Idle floating
+                    mesh.position.z += Math.sin(time * 3 + i) * 0.005;
+                });
+            });
+
+            // Smooth camera return if unfolded
+            if (!isPocketClosed && currentSuit !== 'x') {
+                scene.rotation.x += (0 - scene.rotation.x) * 0.05;
+                scene.rotation.y += (0 - scene.rotation.y) * 0.05;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function exportGLB() {
+            const exporter = new THREE.GLTFExporter();
+            const exportData = Object.values(shells).map(s => s.pivot);
+            exportData.push(corePearl);
+            
+            exporter.parse(exportData, function (gltf) {
+                const blob = new Blob([JSON.stringify(gltf)], { type: 'text/plain' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'Starweber_V2_Creation.gltf';
+                link.click();
+            }, console.error);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Init
+        setSuit('x');
+        animate();
+
+    </script>
+</body>
+</html>
